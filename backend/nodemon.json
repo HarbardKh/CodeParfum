@@ -1,0 +1,6 @@
+{
+  "watch": ["src", "payload.config.ts"],
+  "ext": "ts,js,json",
+  "ignore": ["src/**/*.spec.ts", "node_modules", "dist"],
+  "exec": "cross-env PAYLOAD_CONFIG_PATH=payload.config.ts ts-node src/server.ts"
+}

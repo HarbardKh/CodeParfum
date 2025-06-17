@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: projet-chogan-mvp
+    env: node
+    buildCommand: npm install --no-optional && npm run build:render
+    startCommand: npm run serve
+    autoDeploy: false
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 18.x
+      - key: NODE_ENV
+        value: production
+      - key: CI
+        value: false
+    buildFilter:
+      paths:
+        - backend/**/*
+      ignoredPaths:
+        - backend/src/scripts/**/*
+        - backend/src/docs/**/*
+        - backend/node_modules/**/*
+    postDeployHooks:
+      - npm run db:seed
+
+buildTimeCPUs: 2
+buildTimeMemory: 2048
