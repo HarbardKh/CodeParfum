@@ -112,7 +112,7 @@ class AuthDiagnosticTester {
       result.success = response.status === 200 && result.responseSize > 1000; // Page complète
 
       // Détails de diagnostic
-      const details = [];
+      const details: string[] = [];
       details.push(`Status: ${response.status}`);
       details.push(`Taille réponse: ${result.responseSize} bytes`);
       details.push(`Durée: ${duration}ms`);
@@ -230,7 +230,7 @@ class AuthDiagnosticTester {
    * Compare les résultats avec/sans auth
    */
   private compareResults(withoutAuth: TestResult, withAuth: TestResult): void {
-    const differences = [];
+    const differences: string[] = [];
     
     if (withoutAuth.status !== withAuth.status) {
       differences.push(`Status: ${withoutAuth.status} → ${withAuth.status}`);
