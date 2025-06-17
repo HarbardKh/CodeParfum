@@ -1,0 +1,125 @@
+/* 
+ * RESPONSIVE FIXES
+ * Ce fichier contient des correctifs CSS spécifiques pour améliorer 
+ * l'affichage sur appareils mobiles et petits écrans
+ */
+
+/* Correction des débordements */
+html, body {
+  overflow-x: hidden;
+  width: 100%;
+  position: relative;
+}
+
+/* Réduire les marges et paddings sur mobile */
+@media (max-width: 767px) {
+  /* Conteneurs principaux */
+  .container, 
+  main,
+  .mx-auto,
+  .px-4,
+  .px-6,
+  .py-8 {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  /* Espacement vertical plus compact */
+  .my-8,
+  .py-8 {
+    margin-top: 1.5rem !important;
+    margin-bottom: 1.5rem !important;
+    padding-top: 1.5rem !important;
+    padding-bottom: 1.5rem !important;
+  }
+  
+  /* Titres plus petits sur mobile */
+  h1 {
+    font-size: 1.75rem !important;
+  }
+  
+  h2 {
+    font-size: 1.5rem !important;
+  }
+  
+  h3 {
+    font-size: 1.25rem !important;
+  }
+  
+  /* Grilles plus compactes */
+  .grid {
+    gap: 1rem !important;
+  }
+  
+  /* Boutons adaptés au toucher */
+  button, 
+  .btn,
+  [type="button"],
+  [type="submit"] {
+    min-height: 44px; /* Taille minimale pour cibles tactiles */
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+  
+  /* Formulaires adaptés au mobile */
+  input, 
+  select, 
+  textarea {
+    font-size: 16px !important; /* Évite le zoom automatique sur iOS */
+    padding: 0.75rem 1rem !important;
+  }
+  
+  /* Menus et éléments de navigation */
+  nav {
+    padding: 0.5rem !important;
+  }
+}
+
+/* Correction spécifique pour les grilles à >2 colonnes */
+@media (max-width: 767px) {
+  .grid-cols-3,
+  .grid-cols-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+/* Sur très petits écrans, forcer 1 colonne */
+@media (max-width: 479px) {
+  .grid-cols-2,
+  .grid-cols-3,
+  .grid-cols-4 {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Ajuster les cartes produits */
+  .card,
+  .product-card {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+/* Correction spécifique pour les images */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Assurer que les tableaux s'adaptent sur mobile */
+table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Amélioration de la lisibilité des modales sur mobile */
+@media (max-width: 767px) {
+  .modal-content,
+  .dialog {
+    width: 95% !important;
+    max-width: 95% !important;
+    margin: 0 auto !important;
+    padding: 1rem !important;
+  }
+} 

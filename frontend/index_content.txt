@@ -1,0 +1,287 @@
+import { GetStaticProps } from 'next';
+import Layout from '@/components/layout/Layout';
+import Link from 'next/link';
+import Image from 'next/image';
+import axios from 'axios';
+
+interface Parfum {
+  id: string;
+  nom: string;
+  slug: string;
+  prix: number;
+  familleOlfactive?: string;
+  genre?: string;
+  image?: {
+    url: string;
+    alt: string;
+  };
+}
+
+interface SiteConfig {
+  slogan: string;
+  descriptionAccueil: string;
+  miseEnAvant: {
+    titre: string;
+    description: string;
+  };
+}
+
+interface HomeProps {
+  parfumsMisEnAvant: Parfum[];
+  nouveautes: Parfum[];
+  siteConfig: SiteConfig;
+}
+
+// Valeurs par défaut pour la configuration du site
+const defaultSiteConfig: SiteConfig = {
+  slogan: "Découvrez nos parfums d'exception, créés avec passion et expertise.",
+  descriptionAccueil: "L'Atelier Olfactif Privé vous propose une sélection de parfums de qualité, créés par des parfumeurs passionnés.",
+  miseEnAvant: {
+    titre: "Notre sélection du moment",
+    description: "Découvrez nos parfums les plus populaires."
+  }
+};
+
+export default function Home({ parfumsMisEnAvant, nouveautes, siteConfig }: HomeProps) {
+  return (
+    <Layout title="L'Atelier Olfactif Privé - Parfums d'exception">
+      {/* Hero section */}
+      <div className="relative bg-primary-900">
+        <div className="absolute inset-0">
+          <Image
+            src="/images/placeholder-hero.jpg"
+            alt="Arrière-plan"
+            fill
+            className="object-cover opacity-30"
+          />
+        </div>
+        <div className="relative max-w-7xl mx-auto px-4 py-24 sm:px-6 lg:px-8 flex flex-col items-center text-center">
+          <h1 className="text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl">
+            L'Atelier Olfactif Privé
+          </h1>
+          <p className="mt-6 text-xl text-white max-w-3xl">
+            {siteConfig.slogan || "Découvrez nos parfums d'exception, créés avec passion et expertise."}
+          </p>
+          <div className="mt-10">
+            <Link 
+              href="/parfums" 
+              className="inline-block bg-primary-600 py-3 px-8 border border-transparent rounded-md text-base font-medium text-white hover:bg-primary-700"
+            >
+              Découvrir nos parfums
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Section parfums mis en avant */}
+      <div className="bg-white py-16 sm:py-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <h2 className="text-3xl font-extrabold tracking-tight text-gray-900 sm:text-4xl">
+              {siteConfig.miseEnAvant.titre}
+            </h2>
+            <p className="mt-3 max-w-2xl mx-auto text-xl text-gray-500 sm:mt-4">
+              {siteConfig.miseEnAvant.description}
+            </p>
+          </div>
+
+          <div className="mt-12 grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            {parfumsMisEnAvant.map((parfum) => (
+              <div key={parfum.id} className="group relative">
+                <div className="relative w-full h-80 bg-white rounded-lg overflow-hidden group-hover:opacity-75 sm:aspect-w-2 sm:aspect-h-3 sm:h-auto">
+                  <Image
+                    src={parfum.image?.url || `/images/parfum-${parfum.genre?.toLowerCase() || 'unisexe'}.jpg`}
+                    alt={parfum.image?.alt || parfum.nom}
+                    fill
+                    className="w-full h-full object-center object-cover"
+                  />
+                </div>
+                <div className="mt-4 flex items-center justify-between text-base font-medium text-gray-900">
+                  <h3>
+                    <Link href={`/parfums/${parfum.slug}`}>
+                      <span aria-hidden="true" className="absolute inset-0" />
+                      {parfum.nom}
+                    </Link>
+                  </h3>
+                  <p>{parfum.prix.toFixed(2)} €</p>
+                </div>
+                <p className="mt-1 text-sm text-gray-500">{parfum.familleOlfactive}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Section nouveautés */}
+      <div className="bg-gray-50 py-16 sm:py-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <h2 className="text-3xl font-extrabold tracking-tight text-gray-900 sm:text-4xl">
+              Nos nouveautés
+            </h2>
+            <p className="mt-3 max-w-2xl mx-auto text-xl text-gray-500 sm:mt-4">
+              Découvrez nos dernières créations
+            </p>
+          </div>
+
+          <div className="mt-12 grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            {nouveautes.map(parfum => (
+              <div key={parfum.id} className="group relative">
+                <div className="relative w-full h-80 bg-white rounded-lg overflow-hidden group-hover:opacity-75 sm:aspect-w-2 sm:aspect-h-3 sm:h-auto">
+                  <Image
+                    src={parfum.image?.url || `/images/parfum-${parfum.genre?.toLowerCase() || 'unisexe'}.jpg`}
+                    alt={parfum.image?.alt || parfum.nom}
+                    fill
+                    className="w-full h-full object-center object-cover"
+                  />
+                </div>
+                <div className="mt-4 flex items-center justify-between text-base font-medium text-gray-900">
+                  <h3>
+                    <Link href={`/parfums/${parfum.slug}`}>
+                      <span aria-hidden="true" className="absolute inset-0" />
+                      {parfum.nom}
+                    </Link>
+                  </h3>
+                  <p>{parfum.prix.toFixed(2)} €</p>
+                </div>
+                <p className="mt-1 text-sm text-gray-500">{parfum.familleOlfactive}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-12 text-center">
+            <Link 
+              href="/parfums" 
+              className="inline-block bg-primary-600 py-3 px-8 border border-transparent rounded-md text-base font-medium text-white hover:bg-primary-700"
+            >
+              Voir tous nos parfums
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Section à propos */}
+      <div className="bg-white py-16 sm:py-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="lg:grid lg:grid-cols-2 lg:gap-8 lg:items-center">
+            <div>
+              <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">
+                L'Atelier Olfactif Privé
+              </h2>
+              <p className="mt-3 max-w-3xl text-lg text-gray-500">
+                {siteConfig.descriptionAccueil}
+              </p>
+              <div className="mt-8 sm:flex">
+                <div className="rounded-md shadow">
+                  <Link 
+                    href="/a-propos" 
+                    className="flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
+                  >
+                    En savoir plus
+                  </Link>
+                </div>
+                <div className="mt-3 sm:mt-0 sm:ml-3">
+                  <Link 
+                    href="/conseil-personnalise" 
+                    className="flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-primary-700 bg-primary-100 hover:bg-primary-200"
+                  >
+                    Conseil personnalisé
+                  </Link>
+                </div>
+              </div>
+            </div>
+            <div className="mt-10 lg:mt-0">
+              <div className="px-4 lg:px-0">
+                <Image
+                  className="rounded-lg shadow-lg object-cover object-center"
+                  src="/images/about-image.jpg"
+                  alt="L'Atelier Olfactif Privé"
+                  width={600}
+                  height={400}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Layout>
+  );
+}
+
+export const getStaticProps: GetStaticProps = async () => {
+  // URL de base pour l'API
+  const API_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3002';
+  
+  // Parfums par défaut en cas d'échec de la récupération
+  const defaultParfums = [
+    { id: '1', nom: 'Séduction Nocturne', slug: 'seduction-nocturne', prix: 79.90, familleOlfactive: 'Orientale', genre: 'Femme' },
+    { id: '2', nom: 'Élégance Boisée', slug: 'elegance-boisee', prix: 85.50, familleOlfactive: 'Boisée', genre: 'Homme' },
+    { id: '3', nom: 'Fraîcheur Marine', slug: 'fraicheur-marine', prix: 69.90, familleOlfactive: 'Aquatique', genre: 'Unisexe' },
+    { id: '4', nom: 'Éclat de Jasmin', slug: 'eclat-de-jasmin', prix: 72.00, familleOlfactive: 'Florale', genre: 'Femme' },
+    { id: '5', nom: 'Vétiver Sauvage', slug: 'vetiver-sauvage', prix: 88.00, familleOlfactive: 'Aromatique', genre: 'Homme' },
+    { id: '6', nom: 'Ambre Précieux', slug: 'ambre-precieux', prix: 79.90, familleOlfactive: 'Ambrée', genre: 'Unisexe' },
+  ];
+
+  // Référence à la configuration définie plus haut dans le fichier
+  // Nous utilisons la même configuration pour éviter les incohérences
+  
+  try {
+    // Tentative de récupération des parfums depuis l'API
+    let parfumsMisEnAvant = [];
+    let nouveautes = [];
+    
+    try {
+      // Récupération des parfums mis en avant
+      const parfumsResponse = await axios.get(`${API_URL}/api/parfums`, {
+        params: {
+          limit: 4,
+          sort: '-createdAt',
+        }
+      });
+      
+      if (parfumsResponse.data && parfumsResponse.data.docs) {
+        parfumsMisEnAvant = parfumsResponse.data.docs;
+      }
+      
+      // Récupération des nouveautés
+      const nouveautesReq = await axios.get(`${API_URL}/api/parfums`, {
+        params: {
+          limit: 4,
+          sort: '-createdAt',
+        }
+      });
+      
+      if (nouveautesReq.data && nouveautesReq.data.docs) {
+        nouveautes = nouveautesReq.data.docs;
+      }
+    } catch (error) {
+      console.error('Erreur lors de la récupération des données:', error);
+      // En cas d'erreur, utiliser les parfums par défaut
+      parfumsMisEnAvant = defaultParfums.slice(0, 3);
+      nouveautes = defaultParfums.slice(3, 6);
+    }
+    
+    // Retourner les données formatées pour les props
+    return {
+      props: {
+        parfumsMisEnAvant,
+        nouveautes,
+        siteConfig: defaultSiteConfig
+      },
+      // Revalidation toutes les 10 minutes
+      revalidate: 600
+    };
+  } catch (error) {
+    console.error('Erreur dans getStaticProps:', error);
+    
+    // En cas d'erreur globale, utiliser les données par défaut
+    return {
+      props: {
+        parfumsMisEnAvant: defaultParfums.slice(0, 3),
+        nouveautes: defaultParfums.slice(3, 6),
+        siteConfig: defaultSiteConfig
+      },
+      revalidate: 60
+    };
+  }
+} 
