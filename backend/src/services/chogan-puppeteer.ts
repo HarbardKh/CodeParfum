@@ -212,11 +212,31 @@ export class ChoganPuppeteerAutomation {
       // Chercher et remplir le formulaire de connexion
       await this.page.waitForSelector('input[type="email"], input[name*="email"]', { timeout: 10000 });
       
-      // Remplir l'email
-      await this.page.type('input[type="email"], input[name*="email"]', credentials.email, { delay: 100 });
+      // Remplir l'email de manière plus humaine
+      const emailField = await this.page.$('input[type="email"], input[name*="email"]');
+      if (emailField) {
+        await emailField.click(); // Focus d'abord
+        await emailField.evaluate(el => (el as HTMLInputElement).value = ''); // Clear le champ
+        await this.page.type('input[type="email"], input[name*="email"]', credentials.email, { 
+          delay: Math.random() * 50 + 80 // Délai variable entre 80-130ms
+        });
+      }
       
-      // Remplir le mot de passe
-      await this.page.type('input[type="password"]', credentials.password, { delay: 100 });
+      // Petite pause entre les champs
+      await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 500));
+      
+      // Remplir le mot de passe de manière plus humaine
+      const passwordField = await this.page.$('input[type="password"]');
+      if (passwordField) {
+        await passwordField.click(); // Focus d'abord
+        await passwordField.evaluate(el => (el as HTMLInputElement).value = ''); // Clear le champ
+        await this.page.type('input[type="password"]', credentials.password, { 
+          delay: Math.random() * 50 + 80 // Délai variable entre 80-130ms
+        });
+      }
+      
+      // Petite pause avant de soumettre
+      await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 700));
       
       // Prendre une capture avant soumission
       await this.takeScreenshot('before-login-submit');
@@ -313,100 +333,156 @@ export class ChoganPuppeteerAutomation {
     if (!this.page) throw new Error('Page non initialisée');
     
     try {
-      choganLogger.info('CHOGAN_PUPPETEER', 'Vérification popup anti-robot...');
+      choganLogger.info('CHOGAN_PUPPETEER', 'Vérification popup anti-robot (scan approfondi)...');
       
-      // Chercher le texte caractéristique de la popup avec plusieurs variantes
-      const robotPopupInfo = await this.page.evaluate(() => {
-        const text = document.body.innerText.toLowerCase();
-        const contains = (str: string) => text.includes(str);
+      // Analyser toute la page y compris iframes et modals
+      const pageAnalysis = await this.page.evaluate(() => {
+        const getAllText = () => {
+          // Récupérer le texte de tous les éléments, y compris dans les iframes et modals
+          let allText = document.body.innerText.toLowerCase();
+          
+          // Ajouter le contenu des iframes
+          const iframes = Array.from(document.querySelectorAll('iframe'));
+          iframes.forEach(iframe => {
+            try {
+              if (iframe.contentDocument) {
+                allText += ' ' + iframe.contentDocument.body.innerText.toLowerCase();
+              }
+            } catch (e) {
+              // Cross-origin iframe, ignorer
+            }
+          });
+          
+          // Ajouter le contenu des éléments cachés/modals
+          const hiddenElements = Array.from(document.querySelectorAll('[style*="position: fixed"], [style*="position: absolute"], .modal, .popup, .overlay'));
+          hiddenElements.forEach(el => {
+            allText += ' ' + (el.textContent || '').toLowerCase();
+          });
+          
+          return allText;
+        };
+        
+        const fullText = getAllText();
+        const contains = (str: string) => fullText.includes(str);
+        
+        // Analyser tous les boutons visibles et cachés
+        const allButtons = Array.from(document.querySelectorAll('button, input, a, div[role="button"], span[onclick]'));
+        const buttonInfo = allButtons.map(btn => ({
+          text: (btn.textContent || '').trim(),
+          value: (btn as HTMLInputElement).value || '',
+          className: btn.className,
+          id: btn.id,
+          visible: (btn as HTMLElement).offsetParent !== null,
+          style: (btn as HTMLElement).style.cssText
+        }));
         
         return {
-          fullText: text.substring(0, 500), // Premier 500 caractères pour debug
+          fullText: fullText.substring(0, 800), // Plus de texte pour debug
+          buttons: buttonInfo.filter(b => b.text.toLowerCase().includes('ok') || b.value.toLowerCase().includes('ok')),
           hasRobot: contains('robot'),
           hasProve: contains('prove'),
           hasYouHave: contains('you have'),
-          detected: contains('prove you\'re not a robot') || 
-                   contains('not a robot to go on') ||
-                   contains('prove youre not a robot') ||
-                   contains('prove you are not a robot') ||
-                   contains('you have to prove') ||
-                   (contains('robot') && contains('prove'))
+          detected: contains('robot') && (
+            contains('prove') || 
+            contains('not a robot') ||
+            contains('you have to') ||
+            contains('go on')
+          )
         };
       });
       
-      choganLogger.info('CHOGAN_PUPPETEER', 'Analyse du contenu de la page:', robotPopupInfo);
-      const robotPopup = robotPopupInfo.detected;
+      choganLogger.info('CHOGAN_PUPPETEER', 'Analyse complète de la page:', {
+        detected: pageAnalysis.detected,
+        hasRobot: pageAnalysis.hasRobot,
+        hasProve: pageAnalysis.hasProve,
+        hasYouHave: pageAnalysis.hasYouHave,
+        okButtons: pageAnalysis.buttons,
+        textSample: pageAnalysis.fullText
+      });
       
-      if (robotPopup) {
-        choganLogger.info('CHOGAN_PUPPETEER', 'Popup anti-robot détectée, recherche du bouton OK...');
+      if (pageAnalysis.detected) {
+        choganLogger.info('CHOGAN_PUPPETEER', '🤖 Popup anti-robot DÉTECTÉE ! Recherche du bouton OK...');
         
         // Prendre une capture de la popup
-        await this.takeScreenshot('anti-robot-popup');
+        await this.takeScreenshot('anti-robot-popup-detected');
         
-        // Chercher et cliquer sur le bouton "OK"
-        const okButtonSelectors = [
-          'button:contains("OK")',
-          'button:contains("ok")',
-          'button[text="OK"]',
-          'button[value="OK"]',
-          '.btn:contains("OK")',
-          'input[value="OK"]',
-          'a:contains("OK")'
-        ];
-        
+        // Essayer de cliquer sur le bouton OK de plusieurs façons
         let okClicked = false;
-        for (const selector of okButtonSelectors) {
+        
+        // Méthode 1: Sélecteurs CSS simples
+        const okSelectors = ['button', 'input[type="button"]', 'input[type="submit"]', 'a', 'div[role="button"]'];
+        for (const baseSelector of okSelectors) {
           try {
-            await this.page.waitForSelector(selector, { timeout: 2000 });
-            await this.page.click(selector);
-            choganLogger.info('CHOGAN_PUPPETEER', `Bouton OK trouvé avec sélecteur: ${selector}`);
-            okClicked = true;
-            break;
+                         okClicked = await this.page.evaluate((selector) => {
+               const elements = Array.from(document.querySelectorAll(selector));
+               const okElement = elements.find(el => {
+                 const text = el.textContent?.toLowerCase() || '';
+                 const value = (el as HTMLInputElement).value?.toLowerCase() || '';
+                 return text.includes('ok') || value.includes('ok');
+               });
+               
+               if (okElement) {
+                 (okElement as HTMLElement).click();
+                 return true;
+               }
+               return false;
+             }, baseSelector);
+             
+             if (okClicked) {
+               choganLogger.info('CHOGAN_PUPPETEER', `✅ Bouton OK cliqué via sélecteur: ${baseSelector}`);
+               break;
+             }
           } catch (error) {
             continue;
           }
         }
         
+        // Méthode 2: Recherche par texte exact si la première méthode échoue
         if (!okClicked) {
-          // Recherche plus générale du bouton OK
-          const okFound = await this.page.evaluate(() => {
-            const buttons = Array.from(document.querySelectorAll('button, input, a'));
-            const okButton = buttons.find(btn => {
-              const text = btn.textContent?.toLowerCase() || '';
-              const value = (btn as HTMLInputElement).value?.toLowerCase() || '';
-              return text.includes('ok') || value.includes('ok');
+          okClicked = await this.page.evaluate(() => {
+            const elements = Array.from(document.querySelectorAll('*'));
+            const okElement = elements.find(el => {
+              const text = el.textContent?.trim().toLowerCase() || '';
+              return text === 'ok' || text === 'okay';
             });
             
-            if (okButton) {
-              (okButton as HTMLElement).click();
+            if (okElement) {
+              (okElement as HTMLElement).click();
               return true;
             }
             return false;
           });
           
-          if (okFound) {
-            choganLogger.info('CHOGAN_PUPPETEER', 'Bouton OK trouvé par recherche générale');
-            okClicked = true;
+          if (okClicked) {
+            choganLogger.info('CHOGAN_PUPPETEER', '✅ Bouton OK cliqué via recherche par texte exact');
           }
         }
         
         if (okClicked) {
           // Attendre que la popup disparaisse
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          
+          // Prendre une capture après fermeture popup
+          await this.takeScreenshot('after-popup-closed');
           
           // Re-cliquer sur le bouton de connexion
-          choganLogger.info('CHOGAN_PUPPETEER', 'Re-clic sur le bouton de connexion après popup...');
+          choganLogger.info('CHOGAN_PUPPETEER', '🔄 Re-clic sur le bouton de connexion après popup...');
           await this.page.click('#btn_login');
-          choganLogger.info('CHOGAN_PUPPETEER', 'Second clic effectué sur #btn_login');
+          choganLogger.info('CHOGAN_PUPPETEER', '✅ Second clic effectué sur #btn_login');
+          
+          // Attendre encore un peu pour la redirection
+          await new Promise(resolve => setTimeout(resolve, 2000));
         } else {
-          choganLogger.warn('CHOGAN_PUPPETEER', 'Popup anti-robot détectée mais bouton OK non trouvé');
+          choganLogger.error('CHOGAN_PUPPETEER', '❌ Popup anti-robot détectée mais impossible de cliquer sur OK');
+          await this.takeScreenshot('popup-ok-not-found');
         }
       } else {
-        choganLogger.info('CHOGAN_PUPPETEER', 'Pas de popup anti-robot détectée');
+        choganLogger.info('CHOGAN_PUPPETEER', '✅ Pas de popup anti-robot détectée');
       }
       
     } catch (error) {
-      choganLogger.info('CHOGAN_PUPPETEER', 'Erreur lors de la gestion popup anti-robot', error);
+      choganLogger.error('CHOGAN_PUPPETEER', 'Erreur lors de la gestion popup anti-robot', {}, error as Error);
+      await this.takeScreenshot('popup-error');
     }
   }
 
