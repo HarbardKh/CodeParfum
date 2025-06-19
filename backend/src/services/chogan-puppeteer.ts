@@ -277,8 +277,45 @@ export class ChoganPuppeteerAutomation {
         await this.page.click('#btn_login');
         choganLogger.info('CHOGAN_PUPPETEER', 'Clic effectué sur le bouton #btn_login');
         
-        // Attendre un peu pour voir si une popup anti-robot apparaît
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        // DIAGNOSTIC COMPLET - Analyser immédiatement après le clic
+        choganLogger.info('CHOGAN_PUPPETEER', '🔍 DIAGNOSTIC: Analyse immédiate après clic...');
+        
+        await this.page.evaluate(() => {
+          console.log('=== DIAGNOSTIC PAGE ===');
+          console.log('URL:', window.location.href);
+          console.log('Title:', document.title);
+          console.log('Body text (200 chars):', document.body.innerText.substring(0, 200));
+          
+          // Lister TOUS les éléments avec 'swal' dans leur classe
+          const swalElements = Array.from(document.querySelectorAll('*')).filter(el => 
+            el.className && el.className.toString().includes('swal')
+          );
+          console.log('Éléments SWAL trouvés:', swalElements.length);
+          swalElements.forEach(el => {
+            console.log('- SWAL Element:', el.tagName, el.className, el.textContent?.substring(0, 50));
+          });
+          
+          // Lister TOUS les éléments contenant 'robot'
+          const robotElements = Array.from(document.querySelectorAll('*')).filter(el => 
+            el.textContent && el.textContent.toLowerCase().includes('robot')
+          );
+          console.log('Éléments ROBOT trouvés:', robotElements.length);
+          robotElements.forEach(el => {
+            console.log('- ROBOT Element:', el.tagName, el.className, el.textContent?.substring(0, 100));
+          });
+          
+          // Lister TOUS les overlays/modals potentiels
+          const overlays = Array.from(document.querySelectorAll('[class*="overlay"], [class*="modal"], [style*="position: fixed"], [style*="z-index"]'));
+          console.log('Overlays/Modals trouvés:', overlays.length);
+          overlays.forEach(el => {
+            console.log('- Overlay:', el.tagName, el.className, (el as HTMLElement).style.cssText, el.textContent?.substring(0, 50));
+          });
+        });
+        
+        // Attendre un peu et re-vérifier
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        choganLogger.info('CHOGAN_PUPPETEER', '🔍 DIAGNOSTIC: Analyse après attente de 2s...');
         
         // Vérifier et gérer la popup anti-robot si elle apparaît
         await this.handleAntiRobotPopup();
@@ -335,20 +372,74 @@ export class ChoganPuppeteerAutomation {
     try {
       choganLogger.info('CHOGAN_PUPPETEER', 'Vérification popup anti-robot (scan approfondi)...');
       
-             // Détecter spécifiquement la popup SweetAlert anti-robot
+             // DIAGNOSTIC ULTRA-DÉTAILLÉ de la popup SweetAlert anti-robot
        const pageAnalysis = await this.page.evaluate(() => {
+         console.log('=== DÉBUT DÉTECTION POPUP ===');
+         
          // Rechercher l'overlay SweetAlert spécifique
          const swalOverlay = document.querySelector('.swal-overlay.swal-overlay--show-modal');
          const swalText = document.querySelector('.swal-text');
          const swalButton = document.querySelector('.swal-button.swal-button--confirm');
          
+         console.log('SWAL Overlay trouvé:', !!swalOverlay);
+         console.log('SWAL Text trouvé:', !!swalText);
+         console.log('SWAL Button trouvé:', !!swalButton);
+         
+         if (swalOverlay) {
+           console.log('SWAL Overlay classes:', swalOverlay.className);
+           console.log('SWAL Overlay visible:', (swalOverlay as HTMLElement).offsetParent !== null);
+           console.log('SWAL Overlay style:', (swalOverlay as HTMLElement).style.cssText);
+         }
+         
+         if (swalText) {
+           console.log('SWAL Text content:', swalText.textContent);
+           console.log('SWAL Text contains robot:', swalText.textContent?.toLowerCase().includes('robot'));
+         }
+         
+         if (swalButton) {
+           console.log('SWAL Button text:', swalButton.textContent);
+           console.log('SWAL Button classes:', swalButton.className);
+         }
+         
          // Vérifier si c'est bien la popup anti-robot
          const overlayVisible = swalOverlay && (swalOverlay as HTMLElement).offsetParent !== null;
          const hasRobotText = swalText && swalText.textContent?.toLowerCase().includes('robot');
          
+         console.log('Overlay visible:', overlayVisible);
+         console.log('Has robot text:', hasRobotText);
+         console.log('SWAL détection finale:', overlayVisible && hasRobotText);
+         
          // Analyser le contenu général en fallback
          const fullText = document.body.innerText.toLowerCase();
          const contains = (str: string) => fullText.includes(str);
+         
+         console.log('Text contains robot:', contains('robot'));
+         console.log('Text contains prove/prouver:', contains('prove') || contains('prouver'));
+         console.log('Text contains vous devez:', contains('vous devez'));
+         
+         // CHERCHER PARTOUT des éléments suspects
+         console.log('=== RECHERCHE EXHAUSTIVE ===');
+         const allElements = Array.from(document.querySelectorAll('*'));
+         const suspiciousElements = allElements.filter(el => {
+           const text = el.textContent?.toLowerCase() || '';
+           const className = el.className?.toString() || '';
+           return (text.includes('robot') && text.includes('prouv')) || 
+                  className.includes('swal') ||
+                  className.includes('modal') ||
+                  className.includes('overlay');
+         });
+         
+         console.log('Éléments suspects trouvés:', suspiciousElements.length);
+         suspiciousElements.forEach(el => {
+           console.log('- Suspect:', el.tagName, el.className, el.textContent?.substring(0, 100));
+         });
+         
+         const generalDetected = contains('robot') && (contains('prove') || contains('prouver') || contains('vous devez'));
+         const finalDetected = (overlayVisible && hasRobotText) || generalDetected;
+         
+         console.log('Détection générale:', generalDetected);
+         console.log('DÉTECTION FINALE:', finalDetected);
+         console.log('=== FIN DÉTECTION POPUP ===');
          
          return {
            // Détection spécifique SweetAlert
@@ -358,15 +449,19 @@ export class ChoganPuppeteerAutomation {
            swalButtonExists: !!swalButton,
            swalText: swalText?.textContent || '',
            swalButtonText: swalButton?.textContent || '',
+           overlayVisible: overlayVisible,
+           hasRobotText: hasRobotText,
            
            // Détection générale en fallback
            fullText: fullText.substring(0, 500),
            hasRobot: contains('robot'),
            hasProve: contains('prove') || contains('prouver'),
-           generalDetected: contains('robot') && (contains('prove') || contains('prouver') || contains('vous devez')),
+           hasVousDevez: contains('vous devez'),
+           generalDetected: generalDetected,
+           suspiciousElementsCount: suspiciousElements.length,
            
            // Résultat final
-           detected: (overlayVisible && hasRobotText) || (contains('robot') && (contains('prove') || contains('prouver') || contains('vous devez')))
+           detected: finalDetected
          };
        });
       
