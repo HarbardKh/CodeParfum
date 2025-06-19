@@ -1,6 +1,7 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { ChoganAutomation, OrderRequest } from '../../services/chogan-automation';
+import { ChoganPuppeteerAutomation } from '../../services/chogan-puppeteer';
 import { choganLogger, LogLevel } from '../../utils/logger';
 import { Request, Response } from 'express';
 
@@ -52,11 +53,12 @@ router.post('/submit-order', validateOrderData, async (req, res) => {
       produits: orderData.produits.length
     });
 
-    // Initialiser le service d'automatisation
-    const choganAutomation = new ChoganAutomation();
+    // Utiliser Puppeteer par défaut pour contourner Cloudflare
+    console.log('🚀 Utilisation du service Puppeteer...');
+    const puppeteerAutomation = new ChoganPuppeteerAutomation();
 
     // Traiter la commande
-    const result = await choganAutomation.processOrder(orderData);
+    const result = await puppeteerAutomation.processOrder(orderData);
 
     if (result.success) {
       console.log('✅ Commande traitée avec succès');
@@ -86,23 +88,29 @@ router.post('/submit-order', validateOrderData, async (req, res) => {
 
 /**
  * GET /api/chogan/health
- * Endpoint de health check pour tester la connexion à Chogan
+ * Endpoint de health check pour tester la connexion à Chogan avec Puppeteer
  */
 router.get('/health', async (req, res) => {
   try {
-    const choganAutomation = new ChoganAutomation();
-    const isConnected = await choganAutomation.testConnection();
+    console.log('🏥 Health check avec Puppeteer...');
+    
+    // Utiliser Puppeteer au lieu d'Axios pour contourner Cloudflare
+    const puppeteerAutomation = new ChoganPuppeteerAutomation();
+    const isConnected = await puppeteerAutomation.testConnection();
     
     res.json({
       success: true,
       chogan_available: isConnected,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      method: 'puppeteer'
     });
   } catch (error) {
+    console.error('❌ Erreur health check:', error);
     res.status(500).json({
       success: false,
       error: 'Impossible de tester la connexion',
-      details: error instanceof Error ? error.message : 'Erreur inconnue'
+      details: error instanceof Error ? error.message : 'Erreur inconnue',
+      method: 'puppeteer'
     });
   }
 });
