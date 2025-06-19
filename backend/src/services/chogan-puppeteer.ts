@@ -257,6 +257,12 @@ export class ChoganPuppeteerAutomation {
         await this.page.click('#btn_login');
         choganLogger.info('CHOGAN_PUPPETEER', 'Clic effectué sur le bouton #btn_login');
         
+        // Attendre un peu pour voir si une popup anti-robot apparaît
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        // Vérifier et gérer la popup anti-robot si elle apparaît
+        await this.handleAntiRobotPopup();
+        
       } catch (error) {
         // Debug : analyser tous les éléments de la page pour diagnostic
         const pageElements = await this.page.evaluate(() => {
@@ -300,7 +306,93 @@ export class ChoganPuppeteerAutomation {
     }
   }
 
-
+  /**
+   * Gérer la popup anti-robot "You have to prove you're not a robot to go on"
+   */
+  private async handleAntiRobotPopup(): Promise<void> {
+    if (!this.page) throw new Error('Page non initialisée');
+    
+    try {
+      choganLogger.info('CHOGAN_PUPPETEER', 'Vérification popup anti-robot...');
+      
+      // Chercher le texte caractéristique de la popup
+      const robotPopup = await this.page.evaluate(() => {
+        const text = document.body.innerText.toLowerCase();
+        return text.includes('prove you\'re not a robot') || text.includes('not a robot to go on');
+      });
+      
+      if (robotPopup) {
+        choganLogger.info('CHOGAN_PUPPETEER', 'Popup anti-robot détectée, recherche du bouton OK...');
+        
+        // Prendre une capture de la popup
+        await this.takeScreenshot('anti-robot-popup');
+        
+        // Chercher et cliquer sur le bouton "OK"
+        const okButtonSelectors = [
+          'button:contains("OK")',
+          'button:contains("ok")',
+          'button[text="OK"]',
+          'button[value="OK"]',
+          '.btn:contains("OK")',
+          'input[value="OK"]',
+          'a:contains("OK")'
+        ];
+        
+        let okClicked = false;
+        for (const selector of okButtonSelectors) {
+          try {
+            await this.page.waitForSelector(selector, { timeout: 2000 });
+            await this.page.click(selector);
+            choganLogger.info('CHOGAN_PUPPETEER', `Bouton OK trouvé avec sélecteur: ${selector}`);
+            okClicked = true;
+            break;
+          } catch (error) {
+            continue;
+          }
+        }
+        
+        if (!okClicked) {
+          // Recherche plus générale du bouton OK
+          const okFound = await this.page.evaluate(() => {
+            const buttons = Array.from(document.querySelectorAll('button, input, a'));
+            const okButton = buttons.find(btn => {
+              const text = btn.textContent?.toLowerCase() || '';
+              const value = (btn as HTMLInputElement).value?.toLowerCase() || '';
+              return text.includes('ok') || value.includes('ok');
+            });
+            
+            if (okButton) {
+              (okButton as HTMLElement).click();
+              return true;
+            }
+            return false;
+          });
+          
+          if (okFound) {
+            choganLogger.info('CHOGAN_PUPPETEER', 'Bouton OK trouvé par recherche générale');
+            okClicked = true;
+          }
+        }
+        
+        if (okClicked) {
+          // Attendre que la popup disparaisse
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Re-cliquer sur le bouton de connexion
+          choganLogger.info('CHOGAN_PUPPETEER', 'Re-clic sur le bouton de connexion après popup...');
+          await this.page.click('#btn_login');
+          choganLogger.info('CHOGAN_PUPPETEER', 'Second clic effectué sur #btn_login');
+        } else {
+          choganLogger.warn('CHOGAN_PUPPETEER', 'Popup anti-robot détectée mais bouton OK non trouvé');
+        }
+      } else {
+        choganLogger.info('CHOGAN_PUPPETEER', 'Pas de popup anti-robot détectée');
+      }
+      
+    } catch (error) {
+      choganLogger.info('CHOGAN_PUPPETEER', 'Erreur lors de la gestion popup anti-robot', error);
+    }
+  }
 
   /**
    * Attendre que Cloudflare se résolve automatiquement
