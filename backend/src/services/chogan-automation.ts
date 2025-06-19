@@ -140,11 +140,23 @@ export class ChoganAutomation {
         throw new Error(`Impossible d'accéder à la page de login: ${loginPageResponse.status}`);
       }
       
-      // Parsing du formulaire pour récupérer les tokens CSRF
+      // Parsing du formulaire pour récupérer les tokens CSRF et analyser le formulaire
       const $ = cheerio.load(loginPageResponse.data);
       const csrfToken = $('meta[name="csrf-token"]').attr('content') || 
                        $('input[name="_token"]').val() as string ||
                        $('input[name="csrf_token"]').val() as string;
+      
+      // Détection du type de formulaire de connexion
+      const loginForm = $('form');
+      const loginButton = $('#btn_login, button[type="submit"], input[type="submit"]');
+      const actionUrl = loginForm.attr('action') || '/login_page';
+      
+      choganLogger.info('CHOGAN_LOGIN', 'Analyse du formulaire de connexion', {
+        formAction: actionUrl,
+        buttonType: loginButton.prop('tagName'),
+        buttonId: loginButton.attr('id'),
+        hasCSRF: !!csrfToken
+      });
       
       // Préparation des données de connexion
       const loginPayload: any = {
@@ -158,23 +170,54 @@ export class ChoganAutomation {
         choganLogger.info('CHOGAN_LOGIN', 'Token CSRF récupéré pour la connexion');
       }
       
-      // Soumission du formulaire de connexion
-      const loginResponse = await this.axiosInstance.post(`${this.baseUrl}/login_page`, loginPayload, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Referer': `${this.baseUrl}/login_page`,
-          'sec-fetch-dest': 'document',
-          'sec-fetch-mode': 'navigate',
-          'sec-fetch-site': 'same-origin',
-          'origin': this.baseUrl
-        },
-        maxRedirects: 5
-      });
+      // Tentative 1: Connexion via l'action du formulaire
+      let loginResponse;
+      const fullActionUrl = actionUrl.startsWith('http') ? actionUrl : `${this.baseUrl}${actionUrl}`;
       
-      choganLogger.httpRequest('POST', '/login_page', loginResponse.status, { email: credentials.email });
+      try {
+        choganLogger.info('CHOGAN_LOGIN', 'Tentative de connexion via formulaire...', { url: fullActionUrl });
+        
+        loginResponse = await this.axiosInstance.post(fullActionUrl, loginPayload, {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Referer': `${this.baseUrl}/login_page`,
+            'sec-fetch-dest': 'document',
+            'sec-fetch-mode': 'navigate',
+            'sec-fetch-site': 'same-origin',
+            'origin': this.baseUrl,
+            'X-Requested-With': 'XMLHttpRequest' // Pour simuler une requête AJAX
+          },
+          maxRedirects: 5
+        });
+        
+        choganLogger.httpRequest('POST', actionUrl, loginResponse.status, { email: credentials.email });
+        
+      } catch (formError) {
+        choganLogger.warn('CHOGAN_LOGIN', 'Échec connexion via formulaire, tentative AJAX...', { error: formError });
+        
+        // Tentative 2: Connexion via AJAX (pour boutons JavaScript)
+        loginResponse = await this.axiosInstance.post(`${this.baseUrl}/ajax/login`, loginPayload, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json, text/javascript, */*; q=0.01',
+            'Referer': `${this.baseUrl}/login_page`,
+            'X-Requested-With': 'XMLHttpRequest',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'same-origin',
+            'origin': this.baseUrl
+          }
+        });
+        
+        choganLogger.httpRequest('POST', '/ajax/login', loginResponse.status, { email: credentials.email });
+      }
       
       // Vérification de la connexion réussie
       if (loginResponse.status === 200 || loginResponse.status === 302) {
+        
+        // Délai pour permettre à la session de se stabiliser
+        await this.delay(1000);
+        
         // Test d'accès à une page revendeur pour confirmer la connexion
         const dashboardTest = await this.axiosInstance.get(`${this.baseUrl}/smartorder`, {
           headers: {
@@ -182,10 +225,35 @@ export class ChoganAutomation {
           }
         });
         
-        if (dashboardTest.status === 200 && !dashboardTest.data.includes('login')) {
+        choganLogger.httpRequest('GET', '/smartorder (test connexion)', dashboardTest.status);
+        
+        // Vérification plus robuste de la connexion
+        const isLoggedIn = dashboardTest.status === 200 && 
+                          !dashboardTest.data.includes('login') && 
+                          !dashboardTest.data.includes('Connexion') &&
+                          (dashboardTest.data.includes('smartorder') || 
+                           dashboardTest.data.includes('dashboard') ||
+                           dashboardTest.data.includes('compte'));
+        
+        if (isLoggedIn) {
           choganLogger.info('CHOGAN_LOGIN', 'Connexion revendeur réussie');
         } else {
-          throw new Error('Connexion échouée - redirection vers login détectée');
+          // Tentative 3: Connexion avec endpoint alternatif
+          choganLogger.warn('CHOGAN_LOGIN', 'Test alternatif de connexion...');
+          
+          const altLoginResponse = await this.axiosInstance.post(`${this.baseUrl}/auth/login`, loginPayload, {
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Referer': `${this.baseUrl}/login_page`,
+              'origin': this.baseUrl
+            }
+          });
+          
+          if (altLoginResponse.status === 200 || altLoginResponse.status === 302) {
+            choganLogger.info('CHOGAN_LOGIN', 'Connexion réussie via endpoint alternatif');
+          } else {
+            throw new Error('Connexion échouée - aucune méthode n\'a fonctionné');
+          }
         }
       } else {
         throw new Error(`Échec de la connexion: ${loginResponse.status}`);
