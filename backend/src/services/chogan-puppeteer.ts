@@ -374,8 +374,8 @@ export class ChoganPuppeteerAutomation {
           
                     choganLogger.info('CHOGAN_PUPPETEER', 'Formulaire soumis directement');
           
-          // Attendre un peu pour voir si la soumission a fonctionné
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          // Attendre plus longtemps pour voir si la popup anti-robot apparaît
+          await new Promise(resolve => setTimeout(resolve, 8000));
           
           // Vérifier si on est toujours sur la même page
           const stillOnLoginPage = await this.page.evaluate(() => {
@@ -423,45 +423,64 @@ export class ChoganPuppeteerAutomation {
             choganLogger.info('CHOGAN_PUPPETEER', '✅ Soumission formulaire réussie');
           }
           
-          // DIAGNOSTIC COMPLET - Analyser immédiatement après soumission
-          choganLogger.info('CHOGAN_PUPPETEER', '🔍 DIAGNOSTIC: Analyse immédiate après soumission...');
-        
-        await this.page.evaluate(() => {
-          console.log('=== DIAGNOSTIC PAGE ===');
-          console.log('URL:', window.location.href);
-          console.log('Title:', document.title);
-          console.log('Body text (200 chars):', document.body.innerText.substring(0, 200));
+                    // DIAGNOSTIC COMPLET - Analyser immédiatement après soumission
+          choganLogger.info('CHOGAN_PUPPETEER', '🔍 DIAGNOSTIC: Recherche popup "robot" ultra-agressive...');
           
-          // Lister TOUS les éléments avec 'swal' dans leur classe
-          const swalElements = Array.from(document.querySelectorAll('*')).filter(el => 
-            el.className && el.className.toString().includes('swal')
-          );
-          console.log('Éléments SWAL trouvés:', swalElements.length);
-          swalElements.forEach(el => {
-            console.log('- SWAL Element:', el.tagName, el.className, el.textContent?.substring(0, 50));
+          await this.page.evaluate(() => {
+            console.log('=== DIAGNOSTIC POPUP ROBOT ===');
+            console.log('URL:', window.location.href);
+            console.log('Title:', document.title);
+            
+            // RECHERCHE 1: Dans tout le document
+            const fullText = document.documentElement.innerText || document.body.innerText || '';
+            console.log('🔍 Recherche "robot" dans le texte complet:', fullText.toLowerCase().includes('robot'));
+            console.log('🔍 Recherche "prouver" dans le texte complet:', fullText.toLowerCase().includes('prouver'));
+            
+            // RECHERCHE 2: Tous les éléments contenant "robot" OU "prouver"
+            const allElements = Array.from(document.querySelectorAll('*'));
+            const robotElements = allElements.filter(el => {
+              const text = el.textContent?.toLowerCase() || '';
+              return text.includes('robot') || text.includes('prouver') || text.includes('prove');
+            });
+            console.log('🤖 Éléments ROBOT/PROUVER trouvés:', robotElements.length);
+            robotElements.forEach(el => {
+              console.log('- ROBOT/PROUVER:', el.tagName, el.className, el.textContent?.substring(0, 150));
+              console.log('  Style:', (el as HTMLElement).style.cssText);
+              console.log('  Visible:', (el as HTMLElement).offsetParent !== null);
+            });
+            
+            // RECHERCHE 3: Éléments avec z-index élevé (popups)
+            const highZElements = allElements.filter(el => {
+              const style = window.getComputedStyle(el);
+              const zIndex = parseInt(style.zIndex);
+              return zIndex > 1000 || style.position === 'fixed';
+            });
+            console.log('⬆️ Éléments Z-INDEX élevé trouvés:', highZElements.length);
+            highZElements.forEach(el => {
+              const style = window.getComputedStyle(el);
+              console.log('- HIGH-Z:', el.tagName, el.className, `z:${style.zIndex}`, el.textContent?.substring(0, 100));
+            });
+            
+            // RECHERCHE 4: Éléments cachés mais récemment créés
+            const recentElements = allElements.filter(el => {
+              return el.tagName.includes('DIV') && (
+                el.className.includes('popup') || 
+                el.className.includes('modal') || 
+                el.className.includes('overlay') ||
+                el.className.includes('challenge') ||
+                el.className.includes('swal')
+              );
+            });
+            console.log('🆕 Éléments POPUP récents:', recentElements.length);
+            recentElements.forEach(el => {
+              console.log('- POPUP:', el.tagName, el.className, el.textContent?.substring(0, 100));
+            });
           });
-          
-          // Lister TOUS les éléments contenant 'robot'
-          const robotElements = Array.from(document.querySelectorAll('*')).filter(el => 
-            el.textContent && el.textContent.toLowerCase().includes('robot')
-          );
-          console.log('Éléments ROBOT trouvés:', robotElements.length);
-          robotElements.forEach(el => {
-            console.log('- ROBOT Element:', el.tagName, el.className, el.textContent?.substring(0, 100));
-          });
-          
-          // Lister TOUS les overlays/modals potentiels
-          const overlays = Array.from(document.querySelectorAll('[class*="overlay"], [class*="modal"], [style*="position: fixed"], [style*="z-index"]'));
-          console.log('Overlays/Modals trouvés:', overlays.length);
-          overlays.forEach(el => {
-            console.log('- Overlay:', el.tagName, el.className, (el as HTMLElement).style.cssText, el.textContent?.substring(0, 50));
-          });
-        });
         
-        // Attendre un peu et re-vérifier
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        choganLogger.info('CHOGAN_PUPPETEER', '🔍 DIAGNOSTIC: Analyse après attente de 2s...');
+                  // Attendre suffisamment pour laisser la popup anti-robot apparaître
+          await new Promise(resolve => setTimeout(resolve, 7000));
+          
+          choganLogger.info('CHOGAN_PUPPETEER', '🔍 DIAGNOSTIC: Analyse après attente de 7s (popup robot)...');
         
         // Vérifier et gérer la popup anti-robot si elle apparaît
                  // Au lieu d'attendre la navigation, on va gérer la popup immédiatement
