@@ -220,6 +220,79 @@ router.delete('/logs', (req, res) => {
   }
 });
 
+/**
+ * GET /api/chogan/screenshots
+ * Lister les screenshots disponibles pour debug
+ */
+router.get('/screenshots', (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    
+    const screenshotsDir = path.join(process.cwd(), 'screenshots');
+    
+    if (!fs.existsSync(screenshotsDir)) {
+      return res.json({
+        success: true,
+        screenshots: [],
+        message: 'Aucun dossier de screenshots trouvé'
+      });
+    }
+    
+    const files = fs.readdirSync(screenshotsDir)
+      .filter((file: string) => file.endsWith('.png'))
+      .map((file: string) => ({
+        name: file,
+        url: `/api/chogan/screenshots/${file}`,
+        created: fs.statSync(path.join(screenshotsDir, file)).mtime
+      }))
+      .sort((a: any, b: any) => b.created - a.created); // Plus récents en premier
+    
+    res.json({
+      success: true,
+      screenshots: files,
+      count: files.length
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Erreur lors de la récupération des screenshots',
+      details: error instanceof Error ? error.message : 'Erreur inconnue'
+    });
+  }
+});
+
+/**
+ * GET /api/chogan/screenshots/:filename
+ * Servir un screenshot spécifique
+ */
+router.get('/screenshots/:filename', (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    
+    const filename = req.params.filename;
+    const screenshotsDir = path.join(process.cwd(), 'screenshots');
+    const filePath = path.join(screenshotsDir, filename);
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        success: false,
+        error: 'Screenshot non trouvé'
+      });
+    }
+    
+    res.setHeader('Content-Type', 'image/png');
+    res.sendFile(filePath);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Erreur lors de la récupération du screenshot',
+      details: error instanceof Error ? error.message : 'Erreur inconnue'
+    });
+  }
+});
+
 // Route pour tester le diagnostic d'authentification
 router.post('/test-auth', async (req: Request, res: Response) => {
   const logger = choganLogger;

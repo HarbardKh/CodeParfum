@@ -224,16 +224,27 @@ export class ChoganPuppeteerAutomation {
       // Soumettre le formulaire - chercher le bouton "Me connecter"
       // Essayer plusieurs sélecteurs possibles pour le bouton de connexion
       const submitSelectors = [
+        'input[type="submit"]',
+        'button[type="submit"]',
         'button:text("Me connecter")',
         'input[value="Me connecter"]',
         'button[value="Me connecter"]',
         'a:text("Me connecter")',
         'button:text("Connexion")',
-        'input[type="submit"]',
-        'button[type="submit"]',
+        'button:text("Se connecter")',
+        'button:text("LOGIN")',
+        'button:text("Login")',
         'form button',
         '.btn-login',
-        '#login-submit'
+        '.btn-submit',
+        '.login-button',
+        '#login-submit',
+        '#submit',
+        '[name="submit"]',
+        '[value*="connect"]',
+        '[value*="login"]',
+        'button',
+        'input[type="button"]'
       ];
       
       let submitClicked = false;
@@ -251,14 +262,35 @@ export class ChoganPuppeteerAutomation {
       }
       
       if (!submitClicked) {
+        // Debug : analyser tous les éléments de la page
+        const pageElements = await this.page.evaluate(() => {
+          const allButtons = Array.from(document.querySelectorAll('button, input, a'));
+          return allButtons.map(btn => ({
+            tagName: btn.tagName,
+            type: (btn as HTMLInputElement).type || '',
+            value: (btn as HTMLInputElement).value || '',
+            textContent: btn.textContent?.trim() || '',
+            className: btn.className || '',
+            id: btn.id || '',
+            innerHTML: btn.innerHTML?.substring(0, 100) || ''
+          }));
+        });
+        
+        choganLogger.info('CHOGAN_PUPPETEER', 'Éléments trouvés sur la page:', { elements: pageElements.slice(0, 10) });
+        
         // Dernier recours : chercher par texte avec evaluate
         const buttonFound = await this.page.evaluate(() => {
-          const buttons = Array.from(document.querySelectorAll('button, input[type="submit"], a'));
-          const targetButton = buttons.find(btn => 
-            btn.textContent?.includes('Me connecter') || 
-            btn.textContent?.includes('Connexion') ||
-            (btn as HTMLInputElement).value?.includes('connecter')
-          );
+          const buttons = Array.from(document.querySelectorAll('button, input[type="submit"], input[type="button"], a'));
+          const targetButton = buttons.find(btn => {
+            const text = btn.textContent?.toLowerCase() || '';
+            const value = (btn as HTMLInputElement).value?.toLowerCase() || '';
+            
+            return text.includes('connecter') || 
+                   text.includes('connexion') || 
+                   text.includes('login') ||
+                   value.includes('connecter') ||
+                   value.includes('login');
+          });
           
           if (targetButton) {
             (targetButton as HTMLElement).click();
@@ -270,7 +302,9 @@ export class ChoganPuppeteerAutomation {
         if (buttonFound) {
           choganLogger.info('CHOGAN_PUPPETEER', 'Bouton trouvé par recherche de texte');
         } else {
-          throw new Error('Aucun bouton de connexion trouvé');
+          // Prendre une capture avant l'erreur pour debug
+          await this.takeScreenshot('no-button-found-debug');
+          throw new Error('Aucun bouton de connexion trouvé - Vérifiez les screenshots');
         }
       }
       
