@@ -221,48 +221,44 @@ export class ChoganPuppeteerAutomation {
       // Prendre une capture avant soumission
       await this.takeScreenshot('before-login-submit');
       
-      // Soumettre le formulaire - chercher le bouton "Me connecter"
-      // Essayer plusieurs sélecteurs possibles pour le bouton de connexion
-      const submitSelectors = [
-        'input[type="submit"]',
-        'button[type="submit"]',
-        'button:text("Me connecter")',
-        'input[value="Me connecter"]',
-        'button[value="Me connecter"]',
-        'a:text("Me connecter")',
-        'button:text("Connexion")',
-        'button:text("Se connecter")',
-        'button:text("LOGIN")',
-        'button:text("Login")',
-        'form button',
-        '.btn-login',
-        '.btn-submit',
-        '.login-button',
-        '#login-submit',
-        '#submit',
-        '[name="submit"]',
-        '[value*="connect"]',
-        '[value*="login"]',
-        'button',
-        'input[type="button"]'
-      ];
-      
-      let submitClicked = false;
-      for (const selector of submitSelectors) {
-        try {
-          await this.page.waitForSelector(selector, { timeout: 2000 });
-          await this.page.click(selector);
-          choganLogger.info('CHOGAN_PUPPETEER', `Bouton trouvé avec sélecteur: ${selector}`);
-          submitClicked = true;
-          break;
-        } catch (error) {
-          // Continuer avec le sélecteur suivant
-          continue;
+      // Cliquer sur le bouton de connexion avec l'ID exact
+      // Le bouton a l'ID "btn_login" et le texte "Me connecter" ou "Log in"
+      try {
+        choganLogger.info('CHOGAN_PUPPETEER', 'Recherche du bouton de connexion #btn_login...');
+        
+        // Attendre que le bouton soit présent
+        await this.page.waitForSelector('#btn_login', { timeout: 10000 });
+        
+        // Vérifier que le bouton est visible et cliquable
+        const buttonInfo = await this.page.evaluate(() => {
+          const button = document.querySelector('#btn_login') as HTMLElement;
+          if (!button) return null;
+          
+          return {
+            text: button.textContent?.trim(),
+            className: button.className,
+            href: (button as HTMLAnchorElement).href,
+            visible: button.offsetParent !== null,
+            disabled: (button as HTMLInputElement).disabled
+          };
+        });
+        
+        choganLogger.info('CHOGAN_PUPPETEER', 'Bouton de connexion trouvé:', buttonInfo);
+        
+        if (!buttonInfo) {
+          throw new Error('Bouton #btn_login non trouvé');
         }
-      }
-      
-      if (!submitClicked) {
-        // Debug : analyser tous les éléments de la page
+        
+        if (!buttonInfo.visible) {
+          throw new Error('Bouton #btn_login non visible');
+        }
+        
+        // Cliquer sur le bouton
+        await this.page.click('#btn_login');
+        choganLogger.info('CHOGAN_PUPPETEER', 'Clic effectué sur le bouton #btn_login');
+        
+      } catch (error) {
+        // Debug : analyser tous les éléments de la page pour diagnostic
         const pageElements = await this.page.evaluate(() => {
           const allButtons = Array.from(document.querySelectorAll('button, input, a'));
           return allButtons.map(btn => ({
@@ -272,40 +268,17 @@ export class ChoganPuppeteerAutomation {
             textContent: btn.textContent?.trim() || '',
             className: btn.className || '',
             id: btn.id || '',
-            innerHTML: btn.innerHTML?.substring(0, 100) || ''
+            href: (btn as HTMLAnchorElement).href || ''
           }));
         });
         
-        choganLogger.info('CHOGAN_PUPPETEER', 'Éléments trouvés sur la page:', { elements: pageElements.slice(0, 10) });
-        
-        // Dernier recours : chercher par texte avec evaluate
-        const buttonFound = await this.page.evaluate(() => {
-          const buttons = Array.from(document.querySelectorAll('button, input[type="submit"], input[type="button"], a'));
-          const targetButton = buttons.find(btn => {
-            const text = btn.textContent?.toLowerCase() || '';
-            const value = (btn as HTMLInputElement).value?.toLowerCase() || '';
-            
-            return text.includes('connecter') || 
-                   text.includes('connexion') || 
-                   text.includes('login') ||
-                   value.includes('connecter') ||
-                   value.includes('login');
-          });
-          
-          if (targetButton) {
-            (targetButton as HTMLElement).click();
-            return true;
-          }
-          return false;
+        choganLogger.error('CHOGAN_PUPPETEER', 'Erreur détection bouton #btn_login', { 
+          error: error instanceof Error ? error.message : 'Erreur inconnue',
+          elements: pageElements.slice(0, 15)
         });
         
-        if (buttonFound) {
-          choganLogger.info('CHOGAN_PUPPETEER', 'Bouton trouvé par recherche de texte');
-        } else {
-          // Prendre une capture avant l'erreur pour debug
-          await this.takeScreenshot('no-button-found-debug');
-          throw new Error('Aucun bouton de connexion trouvé - Vérifiez les screenshots');
-        }
+        await this.takeScreenshot('no-button-found-debug');
+        throw new Error(`Bouton de connexion #btn_login introuvable: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
       }
       
       // Attendre la redirection après connexion (timeout plus long)
