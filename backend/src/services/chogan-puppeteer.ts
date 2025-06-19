@@ -1,5 +1,10 @@
-import puppeteer, { Browser, Page } from 'puppeteer';
+import puppeteer from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import { Browser, Page } from 'puppeteer';
 import { choganLogger } from '../utils/logger';
+
+// ⭐ ACTIVATION DU PLUGIN STEALTH POUR ÉVITER DÉTECTION BOT
+puppeteer.use(StealthPlugin());
 
 // Types pour les données d'entrée (reprise de l'ancien service)
 export interface ClientData {
@@ -147,119 +152,46 @@ export class ChoganPuppeteerAutomation {
     
     choganLogger.info('CHOGAN_PUPPETEER', `Utilisation du profil Chrome: ${userDataDir}`);
     
+    // ⭐ CONFIGURATION STEALTH + MOBILE + COOKIES PERSISTANTS
     this.browser = await puppeteer.launch({
-      headless: isProduction ? true : false, // Headless en production, visible en dev
-      executablePath: isProduction ? undefined : undefined, // Laisser Puppeteer trouver Chrome
-      userDataDir: userDataDir, // ⭐ PROFIL CHROME PERSISTANT
+      headless: isProduction ? true : false,
+      executablePath: isProduction ? undefined : undefined,
+      userDataDir: userDataDir, // ⭐ COOKIES PERSISTANTS
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
         '--no-first-run',
-        '--no-zygote',
         '--disable-gpu',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding',
-        '--disable-features=TranslateUI',
-        '--disable-default-apps', // Gardé pour la performance
-        '--disable-web-security',
-        '--disable-features=VizDisplayCompositor',
-        '--window-size=1280,720',
-        '--memory-pressure-off',
-        '--max_old_space_size=4096',
-        // ⭐ ARGUMENTS POUR ÉVITER DÉTECTION BOT
-        '--disable-blink-features=AutomationControlled',
-        '--exclude-switches=enable-automation',
-        '--disable-extensions-http-throttling',
-        '--aggressive-cache-discard',
-        '--disable-background-networking',
-        '--disable-sync',
-        '--disable-translate',
-        '--hide-scrollbars',
-        '--metrics-recording-only',
-        '--mute-audio',
-        '--no-reporting',
-        '--safebrowsing-disable-auto-update',
-        '--ignore-ssl-errors',
-        '--ignore-certificate-errors'
+        '--window-size=390,844', // ⭐ TAILLE MOBILE (iPhone 12)
+        '--user-agent="Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1"'
       ],
-      timeout: 60000, // Timeout plus long pour les environnements lents
-      ignoreDefaultArgs: ['--enable-automation'], // ⭐ MASQUER L'AUTOMATION
+      timeout: 60000
     });
     
     this.page = await this.browser.newPage();
     
-    // ⭐ MASQUER LES TRACES D'AUTOMATION DE MANIÈRE AVANCÉE
-    await this.page.evaluateOnNewDocument(() => {
-      // Supprimer webdriver complètement
-      delete (window as any).navigator.webdriver;
-      
-      // Remplacer navigator.plugins pour simuler un vrai navigateur
-      Object.defineProperty(navigator, 'plugins', {
-        get: () => [1, 2, 3, 4, 5], // Simuler des plugins installés
-      });
-      
-      // Remplacer navigator.languages avec profil français
-      Object.defineProperty(navigator, 'languages', {
-        get: () => ['fr-FR', 'fr', 'en-US', 'en'],
-      });
-      
-      // Simuler l'objet chrome d'un navigateur normal
-      (window as any).chrome = { 
-        runtime: {},
-        app: { isInstalled: false },
-        webstore: {}
-      };
-      
-      // Permissions API normale
-      Object.defineProperty(navigator, 'permissions', {
-        get: () => ({ query: () => Promise.resolve({ state: 'granted' }) }),
-      });
-      
-      // Connexion simulée (important pour éviter détection bot)
-      Object.defineProperty(navigator, 'connection', {
-        get: () => ({
-          effectiveType: '4g',
-          rtt: 50,
-          downlink: 10,
-          saveData: false
-        }),
-      });
-      
-      // Memory API normale
-      if ('memory' in performance) {
-        Object.defineProperty(performance, 'memory', {
-          get: () => ({
-            usedJSHeapSize: 10000000 + Math.random() * 5000000,
-            totalJSHeapSize: 20000000 + Math.random() * 10000000,
-            jsHeapSizeLimit: 2172649472
-          }),
-        });
-      }
+    // ⭐ CONFIGURATION MOBILE POUR ÉVITER DÉTECTION BOT
+    await this.page.setViewport({ 
+      width: 390, 
+      height: 844,
+      isMobile: true,
+      hasTouch: true,
+      deviceScaleFactor: 3
     });
     
-    // Configuration de la page pour ressembler à un utilisateur réel
+    // ⭐ USER-AGENT MOBILE COHÉRENT
     await this.page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1'
     );
     
-    await this.page.setViewport({ width: 1280, height: 720 });
-    
-    // Headers réalistes d'une session Chrome connectée
+    // ⭐ HEADERS MOBILES RÉALISTES
     await this.page.setExtraHTTPHeaders({
-      'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+      'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
       'Cache-Control': 'max-age=0',
-      'Sec-Fetch-Site': 'none',
-      'Sec-Fetch-Mode': 'navigate',
-      'Sec-Fetch-User': '?1',
-      'Sec-Fetch-Dest': 'document',
       'Upgrade-Insecure-Requests': '1',
-      'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-platform': '"Windows"'
+      'sec-ch-ua-mobile': '?1' // ⭐ IMPORTANT: Indiquer que c'est mobile
     });
     
     choganLogger.info('CHOGAN_PUPPETEER', 'Navigateur initialisé avec succès');

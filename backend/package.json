@@ -49,6 +49,8 @@
     "mongodb": "^6.16.0",
     "payload": "^2.30.0",
     "puppeteer": "^24.10.1",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "sass": "^1.58.3",
     "tough-cookie": "^5.1.2"
   },
