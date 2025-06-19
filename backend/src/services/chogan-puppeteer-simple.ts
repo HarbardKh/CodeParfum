@@ -138,22 +138,145 @@ export class ChoganPuppeteerSimple {
     
     choganLogger.info('CHOGAN_PUPPETEER', 'Bouton détecté:', buttonInfo);
     
-    // SIMPLE CLIC
+    // CLIC + DÉCLENCHER LE JAVASCRIPT MANUELLEMENT
+    choganLogger.info('CHOGAN_PUPPETEER', 'Clic + déclenchement JavaScript...');
+    
+    // 1. Clic normal d'abord
     await this.page.click('#btn_login');
     choganLogger.info('CHOGAN_PUPPETEER', '✅ Clic effectué');
     
-    // Attendre quelques secondes pour voir ce qui se passe
+    // 2. Déclencher tous les événements JavaScript manuellement
+    await this.page.evaluate(() => {
+      const button = document.querySelector('#btn_login') as HTMLElement;
+      if (button) {
+        // Déclencher tous les événements possibles
+        button.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        button.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+        button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        button.dispatchEvent(new Event('click', { bubbles: true }));
+        
+        // Si c'est un formulaire, essayer de le soumettre
+        const form = button.closest('form');
+        if (form) {
+          console.log('Formulaire trouvé, soumission...');
+          form.submit();
+        }
+        
+        // Chercher et exécuter tout JavaScript associé
+        const onclickAttr = button.getAttribute('onclick');
+        if (onclickAttr) {
+          console.log('onclick trouvé:', onclickAttr);
+          eval(onclickAttr);
+        }
+        
+        console.log('Tous les événements déclenchés');
+      }
+    });
+    
+    choganLogger.info('CHOGAN_PUPPETEER', '🔥 Événements JavaScript déclenchés manuellement');
+    
+    // Attendre pour voir la réaction
     await new Promise(resolve => setTimeout(resolve, 5000));
     
-    // Vérifier l'URL actuelle
+    // Vérifier l'URL actuelle et analyser la page
     const currentUrl = this.page.url();
     choganLogger.info('CHOGAN_PUPPETEER', 'URL après clic:', currentUrl);
     
-    // Si on est toujours sur login, il y a un problème
-    if (currentUrl.includes('login')) {
+    // Analyser ce qui s'est passé sur la page
+    const pageAnalysis = await this.page.evaluate(() => {
+      const body = document.body;
+      const title = document.title;
+      const text = body.innerText.toLowerCase();
+      
+      // Chercher des indices de ce qui s'est passé
+      const hasLogin = text.includes('me connecter') || text.includes('connexion');
+      const hasError = text.includes('erreur') || text.includes('error') || text.includes('invalid');
+      const hasSuccess = text.includes('tableau') || text.includes('dashboard') || text.includes('smartorder');
+      const hasRobot = text.includes('robot') || text.includes('captcha');
+      
+      return {
+        title,
+        url: window.location.href,
+        hasLogin,
+        hasError, 
+        hasSuccess,
+        hasRobot,
+        textSample: text.substring(0, 200)
+      };
+    });
+    
+    choganLogger.info('CHOGAN_PUPPETEER', 'Analyse après clic:', pageAnalysis);
+    
+    // Si on est toujours sur login, analyser pourquoi
+    if (currentUrl.includes('login') || pageAnalysis.hasLogin) {
       // Prendre une capture pour debug
       await this.page.screenshot({ path: 'screenshots/login-debug.png', fullPage: true });
-      throw new Error('Toujours sur la page de login après clic');
+      
+           if (pageAnalysis.hasRobot) {
+       choganLogger.info('CHOGAN_PUPPETEER', '🤖 Popup robot détectée - tentative de résolution...');
+       
+       // Prendre une capture de la popup robot
+       await this.page.screenshot({ path: 'screenshots/popup-robot-detected.png', fullPage: true });
+       choganLogger.info('CHOGAN_PUPPETEER', '📸 Capture popup robot sauvée');
+       
+       // Essayer de cliquer sur le bouton OK de la popup robot
+       try {
+         // Attendre que la popup soit complètement chargée
+         await new Promise(resolve => setTimeout(resolve, 2000));
+         
+         // Chercher et cliquer sur différents boutons possibles
+         const robotResolved = await this.page.evaluate(() => {
+           // Chercher le bouton OK de la popup
+           const okButtons = [
+             ...Array.from(document.querySelectorAll('button')),
+             ...Array.from(document.querySelectorAll('input[type="button"]')),
+             ...Array.from(document.querySelectorAll('a'))
+           ].filter(btn => {
+             const text = btn.textContent?.toLowerCase().trim() || '';
+             return text === 'ok' || text === 'continue' || text === 'proceed' || 
+                    text === 'confirmer' || text === 'valider';
+           });
+           
+           console.log('Boutons OK trouvés:', okButtons.length);
+           
+           if (okButtons.length > 0) {
+             (okButtons[0] as HTMLElement).click();
+             return true;
+           }
+           
+           // Fallback: essayer d'appuyer sur Entrée
+           document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+           return false;
+         });
+         
+         choganLogger.info('CHOGAN_PUPPETEER', robotResolved ? 'Bouton OK cliqué' : 'Entrée pressée');
+         
+         // Attendre la réaction
+         await new Promise(resolve => setTimeout(resolve, 3000));
+         
+         // Prendre une capture après clic OK
+         await this.page.screenshot({ path: 'screenshots/after-ok-click.png', fullPage: true });
+         choganLogger.info('CHOGAN_PUPPETEER', '📸 Capture après clic OK sauvée');
+         
+         // Vérifier si on a réussi à passer la popup
+         const newUrl = this.page.url();
+         if (!newUrl.includes('login')) {
+           choganLogger.info('CHOGAN_PUPPETEER', '✅ Popup robot résolue - connexion réussie');
+           return; // Sortir de la fonction, connexion réussie
+         } else {
+           choganLogger.warn('CHOGAN_PUPPETEER', '⚠️ Popup robot non résolue');
+         }
+         
+       } catch (robotError) {
+         choganLogger.warn('CHOGAN_PUPPETEER', 'Erreur gestion popup robot:', robotError);
+       }
+       
+       throw new Error('Popup robot/captcha non résolue automatiquement');
+     } else if (pageAnalysis.hasError) {
+        throw new Error('Erreur de connexion détectée après clic');
+      } else {
+        throw new Error('Toujours sur la page de login après clic - JavaScript non déclenché');
+      }
     }
     
     choganLogger.info('CHOGAN_PUPPETEER', 'Connexion réussie');
