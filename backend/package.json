@@ -23,7 +23,8 @@
     "test:cloudflare": "ts-node src/scripts/test-cloudflare-bypass.ts",
     "test:auth": "ts-node src/scripts/test-auth-chogan.ts",
     "test:puppeteer": "ts-node src/scripts/test-puppeteer-chogan.ts",
-    "test:login": "ts-node src/scripts/test-login-btn.ts"
+    "test:login": "ts-node src/scripts/test-login-btn.ts",
+    "test:simple": "ts-node src/scripts/test-simple-login.ts"
   },
   "dependencies": {
     "@hapi/hoek": "^11.0.7",

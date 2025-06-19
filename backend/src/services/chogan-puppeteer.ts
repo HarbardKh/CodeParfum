@@ -239,48 +239,8 @@ export class ChoganPuppeteerAutomation {
       // Prendre une capture après Cloudflare
       await this.takeScreenshot('after-cloudflare');
       
-      // ⭐ ÉTAPE CRUCIALE: Sélectionner le français d'abord !
-      try {
-        choganLogger.info('CHOGAN_PUPPETEER', 'Sélection de la langue française...');
-        
-        // Méthode robuste: chercher tous les liens et trouver "Français"
-        const frenchLinkFound = await this.page.evaluate(() => {
-          const allLinks = Array.from(document.querySelectorAll('a'));
-          const frenchLink = allLinks.find(link => 
-            link.textContent?.trim() === 'Français' ||
-            link.href.includes('?lang=fr') ||
-            link.href.includes('lang=fr')
-          );
-          
-          if (frenchLink) {
-            frenchLink.click();
-            return true;
-          }
-          return false;
-        });
-        
-        if (frenchLinkFound) {
-          choganLogger.info('CHOGAN_PUPPETEER', '✅ Français sélectionné avec succès');
-        } else {
-          choganLogger.warn('CHOGAN_PUPPETEER', '⚠️ Lien français non trouvé, tentative directe URL...');
-          
-          // Fallback: aller directement à l'URL française
-          await this.page.goto('https://www.chogangroupspa.com/login_page?lang=fr', {
-            waitUntil: 'networkidle2',
-            timeout: 15000
-          });
-        }
-        
-        // Attendre que la page se charge en français
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        
-        // Prendre capture après sélection langue
-        await this.takeScreenshot('after-language-selection');
-        
-      } catch (langError) {
-        choganLogger.warn('CHOGAN_PUPPETEER', '⚠️ Erreur sélection langue:', langError);
-        // Continuer même si ça échoue
-      }
+      // Attendre que la page soit complètement chargée
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
       // Chercher et remplir le formulaire de connexion
       await this.page.waitForSelector('input[type="email"], input[name*="email"]', { timeout: 10000 });
@@ -314,113 +274,42 @@ export class ChoganPuppeteerAutomation {
       // Prendre une capture avant soumission
       await this.takeScreenshot('before-login-submit');
       
-              // Soumettre le formulaire de connexion directement
-        // Plus fiable que le clic sur bouton qui peut être intercepté par JS
-        try {
-          choganLogger.info('CHOGAN_PUPPETEER', 'Recherche du formulaire de connexion...');
+      // Cliquer sur le bouton de connexion - SIMPLE ET DIRECT
+      choganLogger.info('CHOGAN_PUPPETEER', 'Clic sur le bouton de connexion...');
+      
+      try {
+        // Attendre que le bouton soit présent
+        await this.page.waitForSelector('#btn_login', { timeout: 10000 });
+        
+        // Vérifier que le bouton est visible et cliquable
+        const buttonInfo = await this.page.evaluate(() => {
+          const button = document.querySelector('#btn_login') as HTMLElement;
+          if (!button) return null;
           
-          // Attendre que le formulaire soit présent
-          await this.page.waitForSelector('form', { timeout: 10000 });
-          
-          // Vérifier les éléments du formulaire
-          const formInfo = await this.page.evaluate(() => {
-            const forms = Array.from(document.querySelectorAll('form'));
-            const loginForm = forms.find(form => 
-              form.querySelector('input[type="email"]') && 
-              form.querySelector('input[type="password"]')
-            );
-            
-            if (!loginForm) return null;
-            
-            const emailInput = loginForm.querySelector('input[type="email"]') as HTMLInputElement;
-            const passwordInput = loginForm.querySelector('input[type="password"]') as HTMLInputElement;
-            const submitButton = loginForm.querySelector('#btn_login') as HTMLElement;
-            
-            return {
-              formAction: loginForm.action || loginForm.getAttribute('action'),
-              formMethod: loginForm.method || loginForm.getAttribute('method'),
-              emailValue: emailInput?.value,
-              passwordValue: passwordInput?.value,
-              buttonText: submitButton?.textContent?.trim(),
-              buttonVisible: submitButton?.offsetParent !== null
-            };
-          });
-          
-          choganLogger.info('CHOGAN_PUPPETEER', 'Formulaire de connexion analysé:', formInfo);
-          
-          if (!formInfo) {
-            throw new Error('Formulaire de connexion non trouvé');
-          }
-          
-          // MÉTHODE 1: Soumettre directement le formulaire
-          choganLogger.info('CHOGAN_PUPPETEER', 'Soumission directe du formulaire...');
-          
-          await this.page.evaluate(() => {
-            const forms = Array.from(document.querySelectorAll('form'));
-            const loginForm = forms.find(form => 
-              form.querySelector('input[type="email"]') && 
-              form.querySelector('input[type="password"]')
-            );
-            
-            if (loginForm) {
-              // Déclencher l'événement submit
-              loginForm.submit();
-            }
-          });
-          
-                    choganLogger.info('CHOGAN_PUPPETEER', 'Formulaire soumis directement');
-          
-          // Attendre plus longtemps pour voir si la popup anti-robot apparaît
-          await new Promise(resolve => setTimeout(resolve, 8000));
-          
-          // Vérifier si on est toujours sur la même page
-          const stillOnLoginPage = await this.page.evaluate(() => {
-            return document.body.innerText.toLowerCase().includes('me connecter') || 
-                   document.body.innerText.toLowerCase().includes('log in');
-          });
-          
-          if (stillOnLoginPage) {
-            choganLogger.warn('CHOGAN_PUPPETEER', '⚠️ Formulaire submit échoué, tentative clic bouton...');
-            
-            // FALLBACK: Clic traditionnel sur le bouton
-            try {
-              const buttonExists = await this.page.$('#btn_login');
-              if (buttonExists) {
-                await this.page.click('#btn_login');
-                choganLogger.info('CHOGAN_PUPPETEER', 'Clic fallback effectué sur #btn_login');
-              } else {
-                // DERNIER RECOURS: Déclencher les événements manuellement
-                choganLogger.warn('CHOGAN_PUPPETEER', '⚠️ Bouton non trouvé, déclenchement événements manuels...');
-                
-                await this.page.evaluate(() => {
-                  const emailInput = document.querySelector('input[type="email"]') as HTMLInputElement;
-                  const passwordInput = document.querySelector('input[type="password"]') as HTMLInputElement;
-                  
-                  if (emailInput && passwordInput) {
-                    // Déclencher les événements de validation
-                    emailInput.dispatchEvent(new Event('blur', { bubbles: true }));
-                    passwordInput.dispatchEvent(new Event('blur', { bubbles: true }));
-                    
-                    // Simuler Entrée sur le champ password
-                    passwordInput.dispatchEvent(new KeyboardEvent('keydown', { 
-                      key: 'Enter', 
-                      code: 'Enter', 
-                      bubbles: true 
-                    }));
-                  }
-                });
-                
-                choganLogger.info('CHOGAN_PUPPETEER', 'Événements manuels déclenchés');
-              }
-            } catch (fallbackError) {
-              choganLogger.error('CHOGAN_PUPPETEER', 'Erreur fallback:', fallbackError);
-            }
-          } else {
-            choganLogger.info('CHOGAN_PUPPETEER', '✅ Soumission formulaire réussie');
-          }
-          
-                    // DIAGNOSTIC COMPLET - Analyser immédiatement après soumission
-          choganLogger.info('CHOGAN_PUPPETEER', '🔍 DIAGNOSTIC: Recherche popup "robot" ultra-agressive...');
+          return {
+            text: button.textContent?.trim(),
+            visible: button.offsetParent !== null,
+            disabled: button.getAttribute('disabled'),
+            tagName: button.tagName,
+            href: button.getAttribute('href')
+          };
+        });
+        
+        choganLogger.info('CHOGAN_PUPPETEER', 'Bouton trouvé:', buttonInfo);
+        
+        if (!buttonInfo) {
+          throw new Error('Bouton #btn_login non trouvé');
+        }
+        
+        // Clic direct sur le bouton
+        await this.page.click('#btn_login');
+        choganLogger.info('CHOGAN_PUPPETEER', '✅ Clic effectué sur #btn_login');
+        
+        // Attendre un peu pour la soumission
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        // DIAGNOSTIC COMPLET - Analyser immédiatement après soumission
+        choganLogger.info('CHOGAN_PUPPETEER', '🔍 DIAGNOSTIC: Recherche popup "robot" ultra-agressive...');
           
           await this.page.evaluate(() => {
             console.log('=== DIAGNOSTIC POPUP ROBOT ===');
