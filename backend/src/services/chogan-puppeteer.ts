@@ -315,11 +315,27 @@ export class ChoganPuppeteerAutomation {
     try {
       choganLogger.info('CHOGAN_PUPPETEER', 'Vérification popup anti-robot...');
       
-      // Chercher le texte caractéristique de la popup
-      const robotPopup = await this.page.evaluate(() => {
+      // Chercher le texte caractéristique de la popup avec plusieurs variantes
+      const robotPopupInfo = await this.page.evaluate(() => {
         const text = document.body.innerText.toLowerCase();
-        return text.includes('prove you\'re not a robot') || text.includes('not a robot to go on');
+        const contains = (str: string) => text.includes(str);
+        
+        return {
+          fullText: text.substring(0, 500), // Premier 500 caractères pour debug
+          hasRobot: contains('robot'),
+          hasProve: contains('prove'),
+          hasYouHave: contains('you have'),
+          detected: contains('prove you\'re not a robot') || 
+                   contains('not a robot to go on') ||
+                   contains('prove youre not a robot') ||
+                   contains('prove you are not a robot') ||
+                   contains('you have to prove') ||
+                   (contains('robot') && contains('prove'))
+        };
       });
+      
+      choganLogger.info('CHOGAN_PUPPETEER', 'Analyse du contenu de la page:', robotPopupInfo);
+      const robotPopup = robotPopupInfo.detected;
       
       if (robotPopup) {
         choganLogger.info('CHOGAN_PUPPETEER', 'Popup anti-robot détectée, recherche du bouton OK...');
