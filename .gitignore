@@ -16,6 +16,8 @@ lerna-debug.log
 .env.development.local
 .env.test.local
 .env.production.local
+.env.production
+.env.staging
 
 # Next.js
 .next/
@@ -114,3 +116,7 @@ cert/
 certificates/
 
 .vercel
+
+# Chrome user data (profil navigateur local)
+backend/chrome-user-data/
+chrome-user-data/
