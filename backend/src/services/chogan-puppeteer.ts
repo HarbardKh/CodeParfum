@@ -41,6 +41,37 @@ export class ChoganPuppeteerAutomation {
   private page: Page | null = null;
 
   /**
+   * Installer Chrome automatiquement si nécessaire
+   */
+  private async ensureChromeInstalled(): Promise<void> {
+    try {
+      choganLogger.info('CHOGAN_PUPPETEER', 'Vérification de Chrome...');
+      
+      // Tenter de lancer Puppeteer pour voir si Chrome est disponible
+      const testBrowser = await puppeteer.launch({ 
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      });
+      await testBrowser.close();
+      
+      choganLogger.info('CHOGAN_PUPPETEER', 'Chrome trouvé et fonctionnel');
+      
+    } catch (error) {
+      choganLogger.info('CHOGAN_PUPPETEER', 'Chrome non trouvé, installation en cours...');
+      
+      // Installer Chrome avec Puppeteer
+      const { execSync } = require('child_process');
+      try {
+        execSync('npx puppeteer browsers install chrome', { stdio: 'inherit' });
+        choganLogger.info('CHOGAN_PUPPETEER', 'Chrome installé avec succès');
+      } catch (installError) {
+        choganLogger.error('CHOGAN_PUPPETEER', 'Erreur installation Chrome', {}, installError as Error);
+        throw new Error(`Impossible d'installer Chrome: ${installError}`);
+      }
+    }
+  }
+
+  /**
    * Point d'entrée principal pour automatiser une commande avec Puppeteer
    */
   async processOrder(orderData: OrderRequest): Promise<AutomationResult> {
@@ -104,6 +135,9 @@ export class ChoganPuppeteerAutomation {
    */
   private async initializeBrowser(): Promise<void> {
     choganLogger.info('CHOGAN_PUPPETEER', 'Initialisation du navigateur...');
+    
+    // S'assurer que Chrome est installé
+    await this.ensureChromeInstalled();
     
     // Configuration optimisée pour les environnements conteneurisés (Render)
     const isProduction = process.env.NODE_ENV === 'production';
