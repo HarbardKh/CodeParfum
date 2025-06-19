@@ -311,9 +311,6 @@ export class ChoganPuppeteerAutomation {
       // Attendre la redirection après connexion (timeout plus long)
       await this.page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
       
-      // Gérer automatiquement le bandeau de cookies
-      await this.handleCookieBanner();
-      
       // Vérifier que la connexion a réussi
       const currentUrl = this.page.url();
       if (currentUrl.includes('login')) {
@@ -330,88 +327,7 @@ export class ChoganPuppeteerAutomation {
     }
   }
 
-  /**
-   * Gérer le bandeau de cookies automatiquement
-   */
-  private async handleCookieBanner(): Promise<void> {
-    if (!this.page) throw new Error('Page non initialisée');
-    
-    choganLogger.info('CHOGAN_PUPPETEER', 'Vérification du bandeau de cookies...');
-    
-    try {
-      // Attendre un peu pour que le bandeau apparaisse
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Essayer différents sélecteurs pour accepter les cookies
-      const cookieSelectors = [
-        'button:text("Accepter")',
-        'button:text("Accept")',
-        'button:text("Accetta")',
-        'button:text("OK")',
-        'button:text("J\'accepte")',
-        '[id*="cookie"] button',
-        '[class*="cookie"] button',
-        '[class*="consent"] button',
-        'button[id*="accept"]',
-        'button[class*="accept"]',
-        '.cookie-accept',
-        '.consent-accept',
-        '#cookie-accept',
-        '#accept-cookies',
-        'button:contains("cookie")',
-        'a:text("Accepter")',
-        'a:text("Accept")'
-      ];
-      
-      let cookiesHandled = false;
-      for (const selector of cookieSelectors) {
-        try {
-          await this.page.waitForSelector(selector, { timeout: 3000 });
-          await this.page.click(selector);
-          choganLogger.info('CHOGAN_PUPPETEER', `Cookies acceptés avec sélecteur: ${selector}`);
-          cookiesHandled = true;
-          break;
-        } catch (error) {
-          // Continuer avec le sélecteur suivant
-          continue;
-        }
-      }
-      
-      if (!cookiesHandled) {
-        // Dernier recours : chercher par texte avec evaluate
-        const buttonFound = await this.page.evaluate(() => {
-          const buttons = Array.from(document.querySelectorAll('button, a, div[role="button"]'));
-          const targetButton = buttons.find(btn => {
-            const text = btn.textContent?.toLowerCase() || '';
-            return text.includes('accept') || 
-                   text.includes('accepter') || 
-                   text.includes('accetta') ||
-                   text.includes('cookie') ||
-                   text.includes('consent');
-          });
-          
-          if (targetButton) {
-            (targetButton as HTMLElement).click();
-            return true;
-          }
-          return false;
-        });
-        
-        if (buttonFound) {
-          choganLogger.info('CHOGAN_PUPPETEER', 'Cookies acceptés par recherche de texte');
-        } else {
-          choganLogger.info('CHOGAN_PUPPETEER', 'Aucun bandeau de cookies détecté');
-        }
-      }
-      
-      // Attendre que le bandeau disparaisse
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      await this.takeScreenshot('after-cookies');
-      
-    } catch (error) {
-      choganLogger.info('CHOGAN_PUPPETEER', 'Pas de bandeau de cookies ou erreur lors du traitement');
-    }
-  }
+
 
   /**
    * Attendre que Cloudflare se résolve automatiquement
@@ -456,9 +372,6 @@ export class ChoganPuppeteerAutomation {
         waitUntil: 'networkidle2',
         timeout: 30000 // Timeout plus long pour Smart Order
       });
-      
-      // Gérer à nouveau les cookies si nécessaire (ils peuvent apparaître sur Smart Order)
-      await this.handleCookieBanner();
       
       await this.takeScreenshot('smartorder-access');
       choganLogger.info('CHOGAN_PUPPETEER', 'Accès Smart Order réussi');
