@@ -239,6 +239,49 @@ export class ChoganPuppeteerAutomation {
       // Prendre une capture après Cloudflare
       await this.takeScreenshot('after-cloudflare');
       
+      // ⭐ ÉTAPE CRUCIALE: Sélectionner le français d'abord !
+      try {
+        choganLogger.info('CHOGAN_PUPPETEER', 'Sélection de la langue française...');
+        
+        // Méthode robuste: chercher tous les liens et trouver "Français"
+        const frenchLinkFound = await this.page.evaluate(() => {
+          const allLinks = Array.from(document.querySelectorAll('a'));
+          const frenchLink = allLinks.find(link => 
+            link.textContent?.trim() === 'Français' ||
+            link.href.includes('?lang=fr') ||
+            link.href.includes('lang=fr')
+          );
+          
+          if (frenchLink) {
+            frenchLink.click();
+            return true;
+          }
+          return false;
+        });
+        
+        if (frenchLinkFound) {
+          choganLogger.info('CHOGAN_PUPPETEER', '✅ Français sélectionné avec succès');
+        } else {
+          choganLogger.warn('CHOGAN_PUPPETEER', '⚠️ Lien français non trouvé, tentative directe URL...');
+          
+          // Fallback: aller directement à l'URL française
+          await this.page.goto('https://www.chogangroupspa.com/login_page?lang=fr', {
+            waitUntil: 'networkidle2',
+            timeout: 15000
+          });
+        }
+        
+        // Attendre que la page se charge en français
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        // Prendre capture après sélection langue
+        await this.takeScreenshot('after-language-selection');
+        
+      } catch (langError) {
+        choganLogger.warn('CHOGAN_PUPPETEER', '⚠️ Erreur sélection langue:', langError);
+        // Continuer même si ça échoue
+      }
+      
       // Chercher et remplir le formulaire de connexion
       await this.page.waitForSelector('input[type="email"], input[name*="email"]', { timeout: 10000 });
       
