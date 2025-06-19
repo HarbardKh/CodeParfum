@@ -105,8 +105,12 @@ export class ChoganPuppeteerAutomation {
   private async initializeBrowser(): Promise<void> {
     choganLogger.info('CHOGAN_PUPPETEER', 'Initialisation du navigateur...');
     
+    // Configuration optimisée pour les environnements conteneurisés (Render)
+    const isProduction = process.env.NODE_ENV === 'production';
+    
     this.browser = await puppeteer.launch({
-      headless: false, // Mode visible pour debug (à changer en true en production)
+      headless: isProduction ? true : false, // Headless en production, visible en dev
+      executablePath: isProduction ? undefined : undefined, // Laisser Puppeteer trouver Chrome
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -115,8 +119,19 @@ export class ChoganPuppeteerAutomation {
         '--no-first-run',
         '--no-zygote',
         '--disable-gpu',
-        '--window-size=1280,720'
-      ]
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
+        '--disable-features=TranslateUI',
+        '--disable-extensions',
+        '--disable-default-apps',
+        '--disable-web-security',
+        '--disable-features=VizDisplayCompositor',
+        '--window-size=1280,720',
+        '--memory-pressure-off',
+        '--max_old_space_size=4096'
+      ],
+      timeout: 60000 // Timeout plus long pour les environnements lents
     });
     
     this.page = await this.browser.newPage();
