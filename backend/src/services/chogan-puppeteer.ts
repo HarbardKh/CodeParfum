@@ -152,7 +152,7 @@ export class ChoganPuppeteerAutomation {
     
     choganLogger.info('CHOGAN_PUPPETEER', `Utilisation du profil Chrome: ${userDataDir}`);
     
-    // ⭐ CONFIGURATION STEALTH + MOBILE + COOKIES PERSISTANTS
+    // ⭐ CONFIGURATION STEALTH + DESKTOP + COOKIES PERSISTANTS
     this.browser = await puppeteer.launch({
       headless: isProduction ? true : false,
       executablePath: isProduction ? undefined : undefined,
@@ -163,35 +163,56 @@ export class ChoganPuppeteerAutomation {
         '--disable-dev-shm-usage',
         '--no-first-run',
         '--disable-gpu',
-        '--window-size=390,844', // ⭐ TAILLE MOBILE (iPhone 12)
-        '--user-agent="Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1"'
+        '--window-size=1366,768', // ⭐ TAILLE DESKTOP (laptop standard)
+        '--disable-blink-features=AutomationControlled',
+        '--exclude-switches=enable-automation'
       ],
       timeout: 60000
     });
     
     this.page = await this.browser.newPage();
     
-    // ⭐ CONFIGURATION MOBILE POUR ÉVITER DÉTECTION BOT
+    // ⭐ CONFIGURATION DESKTOP POUR ÉVITER DÉTECTION BOT
     await this.page.setViewport({ 
-      width: 390, 
-      height: 844,
-      isMobile: true,
-      hasTouch: true,
-      deviceScaleFactor: 3
+      width: 1366, 
+      height: 768
     });
     
-    // ⭐ USER-AGENT MOBILE COHÉRENT
+    // ⭐ USER-AGENT DESKTOP CHROME RÉALISTE 
     await this.page.setUserAgent(
-      'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1'
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     );
     
-    // ⭐ HEADERS MOBILES RÉALISTES
+    // ⭐ MASQUER LA DÉTECTION PUPPETEER
+    await this.page.evaluateOnNewDocument(() => {
+      // Supprimer navigator.webdriver
+      delete (window.navigator as any).webdriver;
+      
+      // Masquer les propriétés d'automatisation
+      Object.defineProperty(navigator, 'webdriver', {
+        get: () => undefined,
+      });
+      
+      // Faux plugins Chrome
+      Object.defineProperty(navigator, 'plugins', {
+        get: () => [1, 2, 3, 4, 5],
+      });
+      
+      // Fausses langues
+      Object.defineProperty(navigator, 'languages', {
+        get: () => ['fr-FR', 'fr'],
+      });
+    });
+    
+    // ⭐ HEADERS DESKTOP RÉALISTES
     await this.page.setExtraHTTPHeaders({
       'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
       'Cache-Control': 'max-age=0',
       'Upgrade-Insecure-Requests': '1',
-      'sec-ch-ua-mobile': '?1' // ⭐ IMPORTANT: Indiquer que c'est mobile
+      'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+      'sec-ch-ua-mobile': '?0', // ⭐ IMPORTANT: Indiquer que c'est desktop
+      'sec-ch-ua-platform': '"Windows"'
     });
     
     choganLogger.info('CHOGAN_PUPPETEER', 'Navigateur initialisé avec succès');
