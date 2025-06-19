@@ -6,18 +6,17 @@
  */
 
 import { CookieOptions } from 'express';
-import ms from 'ms';
 
-// Durée de validité des sessions
-const SESSION_DURATION = process.env.SESSION_DURATION || '4h';
+// Durée de validité des sessions en millisecondes (4 heures par défaut)
+const SESSION_DURATION_MS = 4 * 60 * 60 * 1000; // 4 heures
 
 // Configuration des cookies en fonction de l'environnement
 export const getCookieOptions = (): CookieOptions => {
   const isProduction = process.env.NODE_ENV === 'production';
   
   return {
-    // Durée de vie du cookie basée sur la configuration
-    maxAge: ms(SESSION_DURATION),
+    // Durée de vie du cookie (4 heures)
+    maxAge: SESSION_DURATION_MS,
     
     // En production, les cookies doivent utiliser Secure
     // pour être transmis uniquement via HTTPS
@@ -51,8 +50,8 @@ export const getPayloadSessionOptions = () => {
     // Nom du cookie de session
     name: 'chogan_session',
     
-    // Expiration basée sur la configuration
-    expires: ms(SESSION_DURATION),
+    // Expiration basée sur la configuration (4 heures)
+    expires: SESSION_DURATION_MS,
   };
 };
 
