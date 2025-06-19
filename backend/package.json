@@ -9,7 +9,6 @@
     "build": "cross-env PAYLOAD_CONFIG_PATH=payload.config.ts tsc && payload build",
     "build:render": "cross-env NODE_ENV=production PAYLOAD_CONFIG_PATH=payload.config.ts tsc --skipLibCheck && payload build",
     "serve": "cross-env NODE_ENV=production node dist/src/server.js",
-    "postbuild": "npx puppeteer browsers install chrome",
     "start": "node -e \"console.log('MONGODB_URI ENV VAR:', process.env.MONGODB_URI)\" && node dist/src/server.js",
     "health-check": "echo \"Health check passed\" && exit 0",
     "test:mongo": "ts-node src/pingMongo.ts",
