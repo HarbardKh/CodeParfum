@@ -25,6 +25,10 @@ export interface ProductData {
 export interface OrderRequest {
   client: ClientData;
   produits: ProductData[];
+  credentials: {
+    email: string;
+    password: string;
+  };
 }
 
 export interface AutomationResult {
@@ -77,10 +81,14 @@ export class ChoganAutomation {
         orderId,
         client: `${orderData.client.prenom} ${orderData.client.nom}`,
         email: orderData.client.email,
-        produits: orderData.produits.length
+        produits: orderData.produits.length,
+        revendeur: orderData.credentials.email
       });
       
-      // Étape 1: Initialisation de session
+      // Étape 0: Connexion au compte revendeur
+      await this.loginToRevendeurAccount(orderData.credentials);
+      
+      // Étape 1: Initialisation de session Smart Order
       await this.initializeSession();
       
       // Étape 2: Soumission des infos client
@@ -109,6 +117,83 @@ export class ChoganAutomation {
         error: error instanceof Error ? error.message : 'Erreur inconnue',
         details: error instanceof Error ? error.stack : undefined
       };
+    }
+  }
+
+  /**
+   * Étape 0: Connexion au compte revendeur Chogan
+   */
+  private async loginToRevendeurAccount(credentials: { email: string; password: string }): Promise<void> {
+    choganLogger.info('CHOGAN_LOGIN', 'Connexion au compte revendeur...', { email: credentials.email });
+    
+    try {
+      // Accès à la page de login pour récupérer le formulaire
+      const loginPageResponse = await this.axiosInstance.get(`${this.baseUrl}/login_page`, {
+        headers: {
+          'Referer': this.baseUrl
+        }
+      });
+      
+      choganLogger.httpRequest('GET', '/login_page', loginPageResponse.status);
+      
+      if (loginPageResponse.status !== 200) {
+        throw new Error(`Impossible d'accéder à la page de login: ${loginPageResponse.status}`);
+      }
+      
+      // Parsing du formulaire pour récupérer les tokens CSRF
+      const $ = cheerio.load(loginPageResponse.data);
+      const csrfToken = $('meta[name="csrf-token"]').attr('content') || 
+                       $('input[name="_token"]').val() as string ||
+                       $('input[name="csrf_token"]').val() as string;
+      
+      // Préparation des données de connexion
+      const loginPayload: any = {
+        email: credentials.email,
+        password: credentials.password
+      };
+      
+      if (csrfToken) {
+        loginPayload._token = csrfToken;
+        this.axiosInstance.defaults.headers.common['X-CSRF-TOKEN'] = csrfToken;
+        choganLogger.info('CHOGAN_LOGIN', 'Token CSRF récupéré pour la connexion');
+      }
+      
+      // Soumission du formulaire de connexion
+      const loginResponse = await this.axiosInstance.post(`${this.baseUrl}/login_page`, loginPayload, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Referer': `${this.baseUrl}/login_page`,
+          'sec-fetch-dest': 'document',
+          'sec-fetch-mode': 'navigate',
+          'sec-fetch-site': 'same-origin',
+          'origin': this.baseUrl
+        },
+        maxRedirects: 5
+      });
+      
+      choganLogger.httpRequest('POST', '/login_page', loginResponse.status, { email: credentials.email });
+      
+      // Vérification de la connexion réussie
+      if (loginResponse.status === 200 || loginResponse.status === 302) {
+        // Test d'accès à une page revendeur pour confirmer la connexion
+        const dashboardTest = await this.axiosInstance.get(`${this.baseUrl}/smartorder`, {
+          headers: {
+            'Referer': `${this.baseUrl}/login_page`
+          }
+        });
+        
+        if (dashboardTest.status === 200 && !dashboardTest.data.includes('login')) {
+          choganLogger.info('CHOGAN_LOGIN', 'Connexion revendeur réussie');
+        } else {
+          throw new Error('Connexion échouée - redirection vers login détectée');
+        }
+      } else {
+        throw new Error(`Échec de la connexion: ${loginResponse.status}`);
+      }
+      
+    } catch (error) {
+      choganLogger.error('CHOGAN_LOGIN', 'Erreur lors de la connexion', { email: credentials.email }, error as Error);
+      throw new Error(`Connexion revendeur échouée: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
     }
   }
 

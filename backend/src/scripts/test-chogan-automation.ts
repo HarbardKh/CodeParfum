@@ -12,6 +12,10 @@ async function testChoganAutomation() {
   
   // Données de test
   const testOrder: OrderRequest = {
+    credentials: {
+      email: process.env.CHOGAN_REVENDEUR_EMAIL || "test@example.com",
+      password: process.env.CHOGAN_REVENDEUR_PASSWORD || "password"
+    },
     client: {
       prenom: "Jean",
       nom: "Dupont",

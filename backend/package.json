@@ -20,7 +20,9 @@
     "reset:collections": "ts-node src/scripts/reset-collections.ts",
     "db:seed": "cross-env NODE_ENV=production ts-node src/scripts/seed.ts",
     "test:chogan": "ts-node src/scripts/test-chogan-automation.ts",
-    "test:cloudflare": "ts-node src/scripts/test-cloudflare-bypass.ts"
+    "test:cloudflare": "ts-node src/scripts/test-cloudflare-bypass.ts",
+    "test:auth": "ts-node src/scripts/test-auth-chogan.ts",
+    "test:puppeteer": "ts-node src/scripts/test-puppeteer-chogan.ts"
   },
   "dependencies": {
     "@hapi/hoek": "^11.0.7",
@@ -46,6 +48,7 @@
     "helmet": "^8.1.0",
     "mongodb": "^6.16.0",
     "payload": "^2.30.0",
+    "puppeteer": "^24.10.1",
     "sass": "^1.58.3",
     "tough-cookie": "^5.1.2"
   },

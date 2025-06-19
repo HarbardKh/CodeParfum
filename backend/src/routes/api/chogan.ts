@@ -8,6 +8,10 @@ const router = express.Router();
 
 // Validation middleware pour les données de commande
 const validateOrderData = [
+  // Validation des credentials revendeur
+  body('credentials.email').isEmail().withMessage('Email revendeur invalide'),
+  body('credentials.password').notEmpty().withMessage('Mot de passe revendeur requis'),
+  
   // Validation des données client
   body('client.prenom').notEmpty().withMessage('Le prénom est requis'),
   body('client.nom').notEmpty().withMessage('Le nom est requis'),
@@ -110,6 +114,10 @@ router.get('/health', async (req, res) => {
 router.post('/test-order', async (req, res) => {
   try {
     const testOrderData: OrderRequest = {
+      credentials: {
+        email: "test@revendeur.com",
+        password: "password_test"
+      },
       client: {
         prenom: "Test",
         nom: "User",
