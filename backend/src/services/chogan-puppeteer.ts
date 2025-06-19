@@ -335,70 +335,52 @@ export class ChoganPuppeteerAutomation {
     try {
       choganLogger.info('CHOGAN_PUPPETEER', 'Vérification popup anti-robot (scan approfondi)...');
       
-      // Analyser toute la page y compris iframes et modals
-      const pageAnalysis = await this.page.evaluate(() => {
-        const getAllText = () => {
-          // Récupérer le texte de tous les éléments, y compris dans les iframes et modals
-          let allText = document.body.innerText.toLowerCase();
-          
-          // Ajouter le contenu des iframes
-          const iframes = Array.from(document.querySelectorAll('iframe'));
-          iframes.forEach(iframe => {
-            try {
-              if (iframe.contentDocument) {
-                allText += ' ' + iframe.contentDocument.body.innerText.toLowerCase();
-              }
-            } catch (e) {
-              // Cross-origin iframe, ignorer
-            }
-          });
-          
-          // Ajouter le contenu des éléments cachés/modals
-          const hiddenElements = Array.from(document.querySelectorAll('[style*="position: fixed"], [style*="position: absolute"], .modal, .popup, .overlay'));
-          hiddenElements.forEach(el => {
-            allText += ' ' + (el.textContent || '').toLowerCase();
-          });
-          
-          return allText;
-        };
-        
-        const fullText = getAllText();
-        const contains = (str: string) => fullText.includes(str);
-        
-        // Analyser tous les boutons visibles et cachés
-        const allButtons = Array.from(document.querySelectorAll('button, input, a, div[role="button"], span[onclick]'));
-        const buttonInfo = allButtons.map(btn => ({
-          text: (btn.textContent || '').trim(),
-          value: (btn as HTMLInputElement).value || '',
-          className: btn.className,
-          id: btn.id,
-          visible: (btn as HTMLElement).offsetParent !== null,
-          style: (btn as HTMLElement).style.cssText
-        }));
-        
-        return {
-          fullText: fullText.substring(0, 800), // Plus de texte pour debug
-          buttons: buttonInfo.filter(b => b.text.toLowerCase().includes('ok') || b.value.toLowerCase().includes('ok')),
-          hasRobot: contains('robot'),
-          hasProve: contains('prove'),
-          hasYouHave: contains('you have'),
-          detected: contains('robot') && (
-            contains('prove') || 
-            contains('not a robot') ||
-            contains('you have to') ||
-            contains('go on')
-          )
-        };
-      });
+             // Détecter spécifiquement la popup SweetAlert anti-robot
+       const pageAnalysis = await this.page.evaluate(() => {
+         // Rechercher l'overlay SweetAlert spécifique
+         const swalOverlay = document.querySelector('.swal-overlay.swal-overlay--show-modal');
+         const swalText = document.querySelector('.swal-text');
+         const swalButton = document.querySelector('.swal-button.swal-button--confirm');
+         
+         // Vérifier si c'est bien la popup anti-robot
+         const overlayVisible = swalOverlay && (swalOverlay as HTMLElement).offsetParent !== null;
+         const hasRobotText = swalText && swalText.textContent?.toLowerCase().includes('robot');
+         
+         // Analyser le contenu général en fallback
+         const fullText = document.body.innerText.toLowerCase();
+         const contains = (str: string) => fullText.includes(str);
+         
+         return {
+           // Détection spécifique SweetAlert
+           swalDetected: overlayVisible && hasRobotText,
+           swalOverlayExists: !!swalOverlay,
+           swalTextExists: !!swalText,
+           swalButtonExists: !!swalButton,
+           swalText: swalText?.textContent || '',
+           swalButtonText: swalButton?.textContent || '',
+           
+           // Détection générale en fallback
+           fullText: fullText.substring(0, 500),
+           hasRobot: contains('robot'),
+           hasProve: contains('prove') || contains('prouver'),
+           generalDetected: contains('robot') && (contains('prove') || contains('prouver') || contains('vous devez')),
+           
+           // Résultat final
+           detected: (overlayVisible && hasRobotText) || (contains('robot') && (contains('prove') || contains('prouver') || contains('vous devez')))
+         };
+       });
       
-      choganLogger.info('CHOGAN_PUPPETEER', 'Analyse complète de la page:', {
-        detected: pageAnalysis.detected,
-        hasRobot: pageAnalysis.hasRobot,
-        hasProve: pageAnalysis.hasProve,
-        hasYouHave: pageAnalysis.hasYouHave,
-        okButtons: pageAnalysis.buttons,
-        textSample: pageAnalysis.fullText
-      });
+             choganLogger.info('CHOGAN_PUPPETEER', 'Analyse SweetAlert anti-robot:', {
+         detected: pageAnalysis.detected,
+         swalDetected: pageAnalysis.swalDetected,
+         swalOverlayExists: pageAnalysis.swalOverlayExists,
+         swalTextExists: pageAnalysis.swalTextExists,
+         swalButtonExists: pageAnalysis.swalButtonExists,
+         swalText: pageAnalysis.swalText,
+         swalButtonText: pageAnalysis.swalButtonText,
+         generalDetected: pageAnalysis.generalDetected,
+         textSample: pageAnalysis.fullText
+       });
       
       if (pageAnalysis.detected) {
         choganLogger.info('CHOGAN_PUPPETEER', '🤖 Popup anti-robot DÉTECTÉE ! Recherche du bouton OK...');
@@ -406,57 +388,75 @@ export class ChoganPuppeteerAutomation {
         // Prendre une capture de la popup
         await this.takeScreenshot('anti-robot-popup-detected');
         
-        // Essayer de cliquer sur le bouton OK de plusieurs façons
-        let okClicked = false;
-        
-        // Méthode 1: Sélecteurs CSS simples
-        const okSelectors = ['button', 'input[type="button"]', 'input[type="submit"]', 'a', 'div[role="button"]'];
-        for (const baseSelector of okSelectors) {
-          try {
-                         okClicked = await this.page.evaluate((selector) => {
-               const elements = Array.from(document.querySelectorAll(selector));
+                 // Cliquer spécifiquement sur le bouton SweetAlert
+         let okClicked = false;
+         
+         // Méthode 1: Cibler directement le bouton SweetAlert
+         try {
+           okClicked = await this.page.evaluate(() => {
+             const swalButton = document.querySelector('.swal-button.swal-button--confirm');
+             if (swalButton && (swalButton as HTMLElement).offsetParent !== null) {
+               (swalButton as HTMLElement).click();
+               return true;
+             }
+             return false;
+           });
+           
+           if (okClicked) {
+             choganLogger.info('CHOGAN_PUPPETEER', '✅ Bouton OK SweetAlert cliqué directement (.swal-button--confirm)');
+           }
+         } catch (error) {
+           choganLogger.warn('CHOGAN_PUPPETEER', 'Erreur clic direct SweetAlert:', error);
+         }
+         
+         // Méthode 2: Chercher dans la structure SweetAlert
+         if (!okClicked) {
+           try {
+             okClicked = await this.page.evaluate(() => {
+               const swalFooter = document.querySelector('.swal-footer');
+               if (swalFooter) {
+                 const button = swalFooter.querySelector('button');
+                 if (button) {
+                   (button as HTMLElement).click();
+                   return true;
+                 }
+               }
+               return false;
+             });
+             
+             if (okClicked) {
+               choganLogger.info('CHOGAN_PUPPETEER', '✅ Bouton OK cliqué via .swal-footer button');
+             }
+           } catch (error) {
+             choganLogger.warn('CHOGAN_PUPPETEER', 'Erreur clic via swal-footer:', error);
+           }
+         }
+         
+         // Méthode 3: Fallback - recherche générale si SweetAlert échoue
+         if (!okClicked) {
+           try {
+             okClicked = await this.page.evaluate(() => {
+               const elements = Array.from(document.querySelectorAll('button, input[type="button"], input[type="submit"]'));
                const okElement = elements.find(el => {
-                 const text = el.textContent?.toLowerCase() || '';
+                 const text = el.textContent?.trim().toLowerCase() || '';
                  const value = (el as HTMLInputElement).value?.toLowerCase() || '';
-                 return text.includes('ok') || value.includes('ok');
+                 return text === 'ok' || value === 'ok';
                });
                
-               if (okElement) {
+               if (okElement && (okElement as HTMLElement).offsetParent !== null) {
                  (okElement as HTMLElement).click();
                  return true;
                }
                return false;
-             }, baseSelector);
+             });
              
              if (okClicked) {
-               choganLogger.info('CHOGAN_PUPPETEER', `✅ Bouton OK cliqué via sélecteur: ${baseSelector}`);
-               break;
+               choganLogger.info('CHOGAN_PUPPETEER', '✅ Bouton OK cliqué via recherche fallback');
              }
-          } catch (error) {
-            continue;
-          }
-        }
-        
-        // Méthode 2: Recherche par texte exact si la première méthode échoue
-        if (!okClicked) {
-          okClicked = await this.page.evaluate(() => {
-            const elements = Array.from(document.querySelectorAll('*'));
-            const okElement = elements.find(el => {
-              const text = el.textContent?.trim().toLowerCase() || '';
-              return text === 'ok' || text === 'okay';
-            });
-            
-            if (okElement) {
-              (okElement as HTMLElement).click();
-              return true;
-            }
-            return false;
-          });
-          
-          if (okClicked) {
-            choganLogger.info('CHOGAN_PUPPETEER', '✅ Bouton OK cliqué via recherche par texte exact');
-          }
-        }
+           } catch (error) {
+             choganLogger.warn('CHOGAN_PUPPETEER', 'Erreur clic fallback:', error);
+           }
+         }
         
         if (okClicked) {
           // Attendre que la popup disparaisse
