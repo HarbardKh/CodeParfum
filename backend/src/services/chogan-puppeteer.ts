@@ -278,23 +278,27 @@ export class ChoganPuppeteerAutomation {
           const loginButton = await this.page.$(loginButtonSelector);
 
           if (loginButton) {
-              choganLogger.info('CHOGAN_PUPPETEER', '✅ Bouton de connexion trouvé. Clic et attente de navigation...');
+              choganLogger.info('CHOGAN_PUPPETEER', '✅ Bouton de connexion trouvé. Clic simple...');
               
-              // On attend la navigation QUI EST DÉCLENCHÉE par le clic.
-              // C'est la méthode la plus robuste pour gérer les connexions.
-              await Promise.all([
-                this.page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }),
-                loginButton.click(),
-              ]);
+              await loginButton.click();
+              
+              choganLogger.info('CHOGAN_PUPPETEER', '✅ Clic effectué. Attente de la réaction de la page (7 secondes)...');
+              await new Promise(resolve => setTimeout(resolve, 7000));
 
-              choganLogger.info('CHOGAN_PUPPETEER', '✅ Navigation détectée après le clic.');
-              await this.takeScreenshot('after-login-navigation');
+              await this.takeScreenshot('after-login-attempt');
 
               // Vérification cruciale : sommes-nous toujours sur la page de login ?
               const currentUrl = this.page.url();
-              if (currentUrl.includes('login')) {
+              if (currentUrl.includes('login_page')) {
                 choganLogger.error('CHOGAN_PUPPETEER', 'Échec de la connexion, toujours sur la page de login.', { url: currentUrl });
-                throw new Error('Connexion échouée - toujours sur la page de login après le clic.');
+                
+                // Analyser la page pour trouver la raison (ex: mdp incorrect)
+                const pageText = await this.page.content();
+                if (pageText.includes('incorrect') || pageText.includes('invalide')) {
+                    throw new Error('Connexion échouée : les identifiants sont probablement incorrects.');
+                }
+                
+                throw new Error('Connexion échouée : le clic n\'a pas provoqué de changement de page.');
               }
 
               choganLogger.info('CHOGAN_PUPPETEER', 'Connexion réussie, URL a changé.', { url: currentUrl });
