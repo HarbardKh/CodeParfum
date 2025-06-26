@@ -32,7 +32,11 @@ app.use(defaultLimiter);
 // Configuration CORS avant tout middleware
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
-    ? [process.env.FRONTEND_URL || 'https://votre-domaine-production.com'] // Remplacer par votre domaine en production
+    ? [
+        process.env.FRONTEND_URL || 'https://votre-domaine-production.com',
+        'https://code-parfum.vercel.app',
+        'https://chogan-mvp.vercel.app' 
+      ]
     : true, // Autorise toutes les origines en développement
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
