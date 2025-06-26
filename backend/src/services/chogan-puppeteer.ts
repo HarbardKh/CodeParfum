@@ -261,32 +261,31 @@ export class ChoganPuppeteerAutomation {
       
       await this.takeScreenshot('before-login-submit');
 
-      // STRATÉGIE ROBUSTE : Cliquer et attendre la navigation simultanément
-      choganLogger.info('CHOGAN_PUPPETEER', 'Clic sur le bouton de connexion et attente de la navigation...');
+      // STRATÉGIE FINALE : Cliquer, puis attendre un sélecteur qui confirme la connexion.
+      choganLogger.info('CHOGAN_PUPPETEER', 'Clic sur le bouton de connexion...');
       
       const loginButtonSelector = '#btn_login';
       await this.page.waitForSelector(loginButtonSelector, { visible: true, timeout: 10000 });
+      await this.page.click(loginButtonSelector);
 
-      await Promise.all([
-        this.page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 20000 }), // Attendre que la page se charge après le clic
-        this.page.click(loginButtonSelector) // Cliquer sur le bouton
-      ]);
+      choganLogger.info('CHOGAN_PUPPETEER', "Attente du signe de connexion réussie (lien 'Smart Order')...");
+      
+      // Le signe du succès est l'apparition du lien vers "Smart Order"
+      const successSelector = 'a[href*="smartorder"]';
+      await this.page.waitForSelector(successSelector, { visible: true, timeout: 20000 });
       
       await this.takeScreenshot('after-login-attempt');
       
-      const currentUrl = this.page.url();
-      if (currentUrl.includes('login_page')) {
-        choganLogger.error('CHOGAN_PUPPETEER', 'Échec de la connexion, toujours sur la page de login.', { url: currentUrl });
-        await this.takeScreenshot('login-error');
-        throw new Error("Connexion échouée : le clic sur le bouton n'a pas provoqué de changement de page.");
-      }
-      
-      choganLogger.info('CHOGAN_PUPPETEER', 'Connexion réussie !', { url: currentUrl });
+      choganLogger.info('CHOGAN_PUPPETEER', 'Connexion réussie ! Lien Smart Order trouvé.');
       await this.takeScreenshot('login-success');
       
     } catch (error) {
       choganLogger.error('CHOGAN_PUPPETEER', 'Erreur lors de la connexion', { email: credentials.email }, error as Error);
       await this.takeScreenshot('login-fatal-error');
+      
+      if (error instanceof Error && error.name === 'TimeoutError') {
+        throw new Error("Connexion revendeur échouée: Le signe de connexion réussie (lien Smart Order) n'est pas apparu après le clic.");
+      }
       throw new Error(`Connexion revendeur échouée: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
     }
   }
