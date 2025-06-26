@@ -112,17 +112,23 @@ export class ParfumScoringEngine {
     const notesCoeur = this.parseAndNormalizeNotes(parfum.noteCoeur);
     const notesFond = this.parseAndNormalizeNotes(parfum.noteFond);
 
-    // --- Score notes aimées ---
-    const scoreTete = notesTete.filter(note => notesAimeesNorm.includes(note)).length * 3;
-    const scoreCoeur = notesCoeur.filter(note => notesAimeesNorm.includes(note)).length * 5;
-    const scoreFond = notesFond.filter(note => notesAimeesNorm.includes(note)).length * 5;
+    // --- Score notes aimées (recherche par inclusion) ---
+    const scoreTete = notesAimeesNorm.reduce((acc, noteAimee) => 
+      acc + (notesTete.some(noteParfum => noteParfum.includes(noteAimee)) ? 3 : 0), 0);
+    const scoreCoeur = notesAimeesNorm.reduce((acc, noteAimee) =>
+      acc + (notesCoeur.some(noteParfum => noteParfum.includes(noteAimee)) ? 5 : 0), 0);
+    const scoreFond = notesAimeesNorm.reduce((acc, noteAimee) =>
+      acc + (notesFond.some(noteParfum => noteParfum.includes(noteAimee)) ? 5 : 0), 0);
     
     score += scoreTete + scoreCoeur + scoreFond;
 
-    // --- Pénalité notes détestées ---
-    const penaliteTete = notesTete.filter(note => notesDetesteesNorm.includes(note)).length * 10;
-    const penaliteCoeur = notesCoeur.filter(note => notesDetesteesNorm.includes(note)).length * 10;
-    const penaliteFond = notesFond.filter(note => notesDetesteesNorm.includes(note)).length * 10;
+    // --- Pénalité notes détestées (recherche par inclusion) ---
+    const penaliteTete = notesDetesteesNorm.reduce((acc, noteDetestee) =>
+      acc + (notesTete.some(noteParfum => noteParfum.includes(noteDetestee)) ? 10 : 0), 0);
+    const penaliteCoeur = notesDetesteesNorm.reduce((acc, noteDetestee) =>
+      acc + (notesCoeur.some(noteParfum => noteParfum.includes(noteDetestee)) ? 10 : 0), 0);
+    const penaliteFond = notesDetesteesNorm.reduce((acc, noteDetestee) =>
+      acc + (notesFond.some(noteParfum => noteParfum.includes(noteDetestee)) ? 10 : 0), 0);
     
     const totalPenalite = Math.min(20, penaliteTete + penaliteCoeur + penaliteFond); // Malus max de -20
     score -= totalPenalite;
