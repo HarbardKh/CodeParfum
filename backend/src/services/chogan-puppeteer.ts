@@ -264,7 +264,7 @@ export class ChoganPuppeteerAutomation {
       // STRATÉGIE ROBUSTE : Cliquer et attendre la navigation simultanément
       choganLogger.info('CHOGAN_PUPPETEER', 'Clic sur le bouton de connexion et attente de la navigation...');
       
-      const loginButtonSelector = '.btn--primary';
+      const loginButtonSelector = '#btn_login';
       await this.page.waitForSelector(loginButtonSelector, { visible: true, timeout: 10000 });
 
       await Promise.all([
