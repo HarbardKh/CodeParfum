@@ -248,60 +248,46 @@ export class ChoganPuppeteerAutomation {
       // Remplir l'email de manière plus humaine
       const emailField = await this.page.$('input[type="email"], input[name*="email"]');
       if (emailField) {
-        await emailField.click(); // Focus d'abord
-        await emailField.evaluate(el => (el as HTMLInputElement).value = ''); // Clear le champ
-        await this.page.type('input[type="email"], input[name*="email"]', credentials.email, { 
-          delay: Math.random() * 50 + 80 // Délai variable entre 80-130ms
-        });
+        await emailField.click({ clickCount: 3 }); // Sélectionner tout le texte
+        await emailField.press('Backspace'); // Effacer
+        await this.page.type('input[type="email"], input[name*="email"]', credentials.email, { delay: 50 });
       }
-      
-      // Petite pause entre les champs
-      await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 500));
-      
-      // Remplir le mot de passe de manière plus humaine
+
       const passwordField = await this.page.$('input[type="password"]');
       if (passwordField) {
-        await passwordField.click(); // Focus d'abord
-        await passwordField.evaluate(el => (el as HTMLInputElement).value = ''); // Clear le champ
-        await this.page.type('input[type="password"], input[name*="password"]', credentials.password, { delay: 50 });
+        await passwordField.click({ clickCount: 3 }); // Sélectionner tout
+        await passwordField.press('Backspace'); // Effacer
+        await this.page.type('input[type="password"]', credentials.password, { delay: 50 });
       }
       
-      // Prendre une capture juste avant le clic
       await this.takeScreenshot('before-login-submit');
 
-      // NOUVELLE STRATÉGIE: Soumission directe du formulaire
-      choganLogger.info('CHOGAN_PUPPETEER', 'Soumission directe du formulaire de connexion...');
+      // NOUVELLE STRATÉGIE: Clic direct sur le bouton de connexion via sa classe
+      choganLogger.info('CHOGAN_PUPPETEER', 'Tentative de clic sur le bouton de connexion via classe .btn--primary...');
       
-      await this.page.evaluate(() => {
-        const form = document.querySelector('form');
-        if (form) {
-          form.submit();
-        } else {
-          // Cette erreur sera catchée plus bas si la soumission n'a pas lieu
-        }
-      });
+      const loginButtonSelector = '.btn--primary';
+      await this.page.waitForSelector(loginButtonSelector, { visible: true, timeout: 10000 });
+      await this.page.click(loginButtonSelector);
       
-      choganLogger.info('CHOGAN_PUPPETEER', '✅ Formulaire soumis. Attente de la réaction de la page (10 secondes)...');
+      choganLogger.info('CHOGAN_PUPPETEER', '✅ Clic sur le bouton de connexion effectué. Attente de la réaction de la page (10 secondes)...');
+      
+      // Attendre un changement de page ou un timeout
       await new Promise(resolve => setTimeout(resolve, 10000));
-
+      
       await this.takeScreenshot('after-login-attempt');
-
+      
+      // Vérifier si la connexion a réussi
       const currentUrl = this.page.url();
       if (currentUrl.includes('login_page')) {
         choganLogger.error('CHOGAN_PUPPETEER', 'Échec de la connexion, toujours sur la page de login.', { url: currentUrl });
-        
-        const pageText = await this.page.content();
-        if (pageText.includes('incorrect') || pageText.includes('invalide')) {
-            throw new Error('Connexion échouée : les identifiants sont probablement incorrects.');
-        }
-        
+        await this.takeScreenshot('login-error');
         throw new Error('Connexion échouée : la soumission du formulaire n\'a pas provoqué de changement de page.');
       }
-
-      choganLogger.info('CHOGAN_PUPPETEER', 'Connexion réussie, URL a changé.', { url: currentUrl });
-
+      
+      choganLogger.info('CHOGAN_PUPPETEER', 'Connexion réussie !', { url: currentUrl });
+      await this.takeScreenshot('login-success');
+      
     } catch (error) {
-      await this.takeScreenshot('login-error');
       choganLogger.error('CHOGAN_PUPPETEER', 'Erreur lors de la connexion', { email: credentials.email }, error as Error);
       throw new Error(`Connexion revendeur échouée: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
     }
