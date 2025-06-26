@@ -268,278 +268,42 @@ export class ChoganPuppeteerAutomation {
       
       // Prendre une capture juste avant le clic
       await this.takeScreenshot('before-login-submit');
+
+      // NOUVELLE STRATÉGIE: Soumission directe du formulaire
+      choganLogger.info('CHOGAN_PUPPETEER', 'Soumission directe du formulaire de connexion...');
       
-      // CLIC ROBUSTE sur le bouton de connexion basé sur sa classe CSS
-      choganLogger.info('CHOGAN_PUPPETEER', 'Recherche du bouton de connexion avec la classe ".btn--primary"...');
-      const loginButtonSelector = '.btn--primary'; // Ce sélecteur est indépendant de la langue
+      await this.page.evaluate(() => {
+        const form = document.querySelector('form');
+        if (form) {
+          form.submit();
+        } else {
+          // Cette erreur sera catchée plus bas si la soumission n'a pas lieu
+        }
+      });
+      
+      choganLogger.info('CHOGAN_PUPPETEER', '✅ Formulaire soumis. Attente de la réaction de la page (10 secondes)...');
+      await new Promise(resolve => setTimeout(resolve, 10000));
 
-      try {
-          await this.page.waitForSelector(loginButtonSelector, { timeout: 15000, visible: true });
-          const loginButton = await this.page.$(loginButtonSelector);
+      await this.takeScreenshot('after-login-attempt');
 
-          if (loginButton) {
-              choganLogger.info('CHOGAN_PUPPETEER', '✅ Bouton de connexion trouvé. Clic simple...');
-              
-              await loginButton.click();
-              
-              choganLogger.info('CHOGAN_PUPPETEER', '✅ Clic effectué. Attente de la réaction de la page (7 secondes)...');
-              await new Promise(resolve => setTimeout(resolve, 7000));
-
-              await this.takeScreenshot('after-login-attempt');
-
-              // Vérification cruciale : sommes-nous toujours sur la page de login ?
-              const currentUrl = this.page.url();
-              if (currentUrl.includes('login_page')) {
-                choganLogger.error('CHOGAN_PUPPETEER', 'Échec de la connexion, toujours sur la page de login.', { url: currentUrl });
-                
-                // Analyser la page pour trouver la raison (ex: mdp incorrect)
-                const pageText = await this.page.content();
-                if (pageText.includes('incorrect') || pageText.includes('invalide')) {
-                    throw new Error('Connexion échouée : les identifiants sont probablement incorrects.');
-                }
-                
-                throw new Error('Connexion échouée : le clic n\'a pas provoqué de changement de page.');
-              }
-
-              choganLogger.info('CHOGAN_PUPPETEER', 'Connexion réussie, URL a changé.', { url: currentUrl });
-
-          } else {
-              throw new Error('Bouton de connexion avec la classe .btn--primary introuvable après attente.');
-          }
-      } catch (e) {
-          choganLogger.error('CHOGAN_PUPPETEER', 'Erreur lors de la recherche ou du clic sur le bouton de connexion.', { error: e });
-          await this.takeScreenshot('login-button-not-found-error');
-          throw new Error(`Le bouton de connexion avec la classe ".btn--primary" n'a pas pu être trouvé ou cliqué.`);
+      const currentUrl = this.page.url();
+      if (currentUrl.includes('login_page')) {
+        choganLogger.error('CHOGAN_PUPPETEER', 'Échec de la connexion, toujours sur la page de login.', { url: currentUrl });
+        
+        const pageText = await this.page.content();
+        if (pageText.includes('incorrect') || pageText.includes('invalide')) {
+            throw new Error('Connexion échouée : les identifiants sont probablement incorrects.');
+        }
+        
+        throw new Error('Connexion échouée : la soumission du formulaire n\'a pas provoqué de changement de page.');
       }
 
-      // Laisser du temps à la page de réagir et de naviguer
-      choganLogger.info('CHOGAN_PUPPETEER', '⏱️ Attente de navigation après le clic...');
-      
-      // Attendre une popup anti-robot potentielle
-      await this.handleAntiRobotPopup();
-      
+      choganLogger.info('CHOGAN_PUPPETEER', 'Connexion réussie, URL a changé.', { url: currentUrl });
+
     } catch (error) {
       await this.takeScreenshot('login-error');
       choganLogger.error('CHOGAN_PUPPETEER', 'Erreur lors de la connexion', { email: credentials.email }, error as Error);
       throw new Error(`Connexion revendeur échouée: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
-    }
-  }
-
-  /**
-   * Gérer la popup anti-robot "You have to prove you're not a robot to go on"
-   */
-  private async handleAntiRobotPopup(): Promise<void> {
-    if (!this.page) throw new Error('Page non initialisée');
-    
-    try {
-      choganLogger.info('CHOGAN_PUPPETEER', 'Vérification popup anti-robot (scan approfondi)...');
-      
-             // DIAGNOSTIC ULTRA-DÉTAILLÉ de la popup SweetAlert anti-robot
-       const pageAnalysis = await this.page.evaluate(() => {
-         console.log('=== DÉBUT DÉTECTION POPUP ===');
-         
-         // Rechercher l'overlay SweetAlert spécifique
-         const swalOverlay = document.querySelector('.swal-overlay.swal-overlay--show-modal');
-         const swalText = document.querySelector('.swal-text');
-         const swalButton = document.querySelector('.swal-button.swal-button--confirm');
-         
-         console.log('SWAL Overlay trouvé:', !!swalOverlay);
-         console.log('SWAL Text trouvé:', !!swalText);
-         console.log('SWAL Button trouvé:', !!swalButton);
-         
-         if (swalOverlay) {
-           console.log('SWAL Overlay classes:', swalOverlay.className);
-           console.log('SWAL Overlay visible:', (swalOverlay as HTMLElement).offsetParent !== null);
-           console.log('SWAL Overlay style:', (swalOverlay as HTMLElement).style.cssText);
-         }
-         
-         if (swalText) {
-           console.log('SWAL Text content:', swalText.textContent);
-           console.log('SWAL Text contains robot:', swalText.textContent?.toLowerCase().includes('robot'));
-         }
-         
-         if (swalButton) {
-           console.log('SWAL Button text:', swalButton.textContent);
-           console.log('SWAL Button classes:', swalButton.className);
-         }
-         
-         // Vérifier si c'est bien la popup anti-robot
-         const overlayVisible = swalOverlay && (swalOverlay as HTMLElement).offsetParent !== null;
-         const hasRobotText = swalText && swalText.textContent?.toLowerCase().includes('robot');
-         
-         console.log('Overlay visible:', overlayVisible);
-         console.log('Has robot text:', hasRobotText);
-         console.log('SWAL détection finale:', overlayVisible && hasRobotText);
-         
-         // Analyser le contenu général en fallback
-         const fullText = document.body.innerText.toLowerCase();
-         const contains = (str: string) => fullText.includes(str);
-         
-         console.log('Text contains robot:', contains('robot'));
-         console.log('Text contains prove/prouver:', contains('prove') || contains('prouver'));
-         console.log('Text contains vous devez:', contains('vous devez'));
-         
-         // CHERCHER PARTOUT des éléments suspects
-         console.log('=== RECHERCHE EXHAUSTIVE ===');
-         const allElements = Array.from(document.querySelectorAll('*'));
-         const suspiciousElements = allElements.filter(el => {
-           const text = el.textContent?.toLowerCase() || '';
-           const className = el.className?.toString() || '';
-           return (text.includes('robot') && text.includes('prouv')) || 
-                  className.includes('swal') ||
-                  className.includes('modal') ||
-                  className.includes('overlay');
-         });
-         
-         console.log('Éléments suspects trouvés:', suspiciousElements.length);
-         suspiciousElements.forEach(el => {
-           console.log('- Suspect:', el.tagName, el.className, el.textContent?.substring(0, 100));
-         });
-         
-         const generalDetected = contains('robot') && (contains('prove') || contains('prouver') || contains('vous devez'));
-         const finalDetected = (overlayVisible && hasRobotText) || generalDetected;
-         
-         console.log('Détection générale:', generalDetected);
-         console.log('DÉTECTION FINALE:', finalDetected);
-         console.log('=== FIN DÉTECTION POPUP ===');
-         
-         return {
-           // Détection spécifique SweetAlert
-           swalDetected: overlayVisible && hasRobotText,
-           swalOverlayExists: !!swalOverlay,
-           swalTextExists: !!swalText,
-           swalButtonExists: !!swalButton,
-           swalText: swalText?.textContent || '',
-           swalButtonText: swalButton?.textContent || '',
-           overlayVisible: overlayVisible,
-           hasRobotText: hasRobotText,
-           
-           // Détection générale en fallback
-           fullText: fullText.substring(0, 500),
-           hasRobot: contains('robot'),
-           hasProve: contains('prove') || contains('prouver'),
-           hasVousDevez: contains('vous devez'),
-           generalDetected: generalDetected,
-           suspiciousElementsCount: suspiciousElements.length,
-           
-           // Résultat final
-           detected: finalDetected
-         };
-       });
-      
-             choganLogger.info('CHOGAN_PUPPETEER', 'Analyse SweetAlert anti-robot:', {
-         detected: pageAnalysis.detected,
-         swalDetected: pageAnalysis.swalDetected,
-         swalOverlayExists: pageAnalysis.swalOverlayExists,
-         swalTextExists: pageAnalysis.swalTextExists,
-         swalButtonExists: pageAnalysis.swalButtonExists,
-         swalText: pageAnalysis.swalText,
-         swalButtonText: pageAnalysis.swalButtonText,
-         generalDetected: pageAnalysis.generalDetected,
-         textSample: pageAnalysis.fullText
-       });
-      
-      if (pageAnalysis.detected) {
-        choganLogger.info('CHOGAN_PUPPETEER', '🤖 Popup anti-robot DÉTECTÉE ! Recherche du bouton OK...');
-        
-        // Prendre une capture de la popup
-        await this.takeScreenshot('anti-robot-popup-detected');
-        
-                 // Cliquer spécifiquement sur le bouton SweetAlert
-         let okClicked = false;
-         
-         // Méthode 1: Cibler directement le bouton SweetAlert
-         try {
-           okClicked = await this.page.evaluate(() => {
-             const swalButton = document.querySelector('.swal-button.swal-button--confirm');
-             if (swalButton && (swalButton as HTMLElement).offsetParent !== null) {
-               (swalButton as HTMLElement).click();
-               return true;
-             }
-             return false;
-           });
-           
-           if (okClicked) {
-             choganLogger.info('CHOGAN_PUPPETEER', '✅ Bouton OK SweetAlert cliqué directement (.swal-button--confirm)');
-           }
-         } catch (error) {
-           choganLogger.warn('CHOGAN_PUPPETEER', 'Erreur clic direct SweetAlert:', error);
-         }
-         
-         // Méthode 2: Chercher dans la structure SweetAlert
-         if (!okClicked) {
-           try {
-             okClicked = await this.page.evaluate(() => {
-               const swalFooter = document.querySelector('.swal-footer');
-               if (swalFooter) {
-                 const button = swalFooter.querySelector('button');
-                 if (button) {
-                   (button as HTMLElement).click();
-                   return true;
-                 }
-               }
-               return false;
-             });
-             
-             if (okClicked) {
-               choganLogger.info('CHOGAN_PUPPETEER', '✅ Bouton OK cliqué via .swal-footer button');
-             }
-           } catch (error) {
-             choganLogger.warn('CHOGAN_PUPPETEER', 'Erreur clic via swal-footer:', error);
-           }
-         }
-         
-         // Méthode 3: Fallback - recherche générale si SweetAlert échoue
-         if (!okClicked) {
-           try {
-             okClicked = await this.page.evaluate(() => {
-               const elements = Array.from(document.querySelectorAll('button, input[type="button"], input[type="submit"]'));
-               const okElement = elements.find(el => {
-                 const text = el.textContent?.trim().toLowerCase() || '';
-                 const value = (el as HTMLInputElement).value?.toLowerCase() || '';
-                 return text === 'ok' || value === 'ok';
-               });
-               
-               if (okElement && (okElement as HTMLElement).offsetParent !== null) {
-                 (okElement as HTMLElement).click();
-                 return true;
-               }
-               return false;
-             });
-             
-             if (okClicked) {
-               choganLogger.info('CHOGAN_PUPPETEER', '✅ Bouton OK cliqué via recherche fallback');
-             }
-           } catch (error) {
-             choganLogger.warn('CHOGAN_PUPPETEER', 'Erreur clic fallback:', error);
-           }
-         }
-        
-        if (okClicked) {
-          // Attendre que la popup disparaisse
-          await new Promise(resolve => setTimeout(resolve, 3000));
-          
-          // Prendre une capture après fermeture popup
-          await this.takeScreenshot('after-popup-closed');
-          
-          // Re-cliquer sur le bouton de connexion
-          choganLogger.info('CHOGAN_PUPPETEER', '🔄 Re-clic sur le bouton de connexion après popup...');
-          await this.page.click('#btn_login');
-          choganLogger.info('CHOGAN_PUPPETEER', '✅ Second clic effectué sur #btn_login');
-          
-          // Attendre encore un peu pour la redirection
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        } else {
-          choganLogger.error('CHOGAN_PUPPETEER', '❌ Popup anti-robot détectée mais impossible de cliquer sur OK');
-          await this.takeScreenshot('popup-ok-not-found');
-        }
-      } else {
-        choganLogger.info('CHOGAN_PUPPETEER', '✅ Pas de popup anti-robot détectée');
-      }
-      
-    } catch (error) {
-      choganLogger.error('CHOGAN_PUPPETEER', 'Erreur lors de la gestion popup anti-robot', {}, error as Error);
-      await this.takeScreenshot('popup-error');
     }
   }
 
