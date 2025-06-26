@@ -208,13 +208,7 @@ export const getRecommandations = async (req: ExtendedRequest, res: Response) =>
 
     for (const parfum of parfumsFiltres) {
       try {
-        // Obtenir les données de famille olfactive si c'est un objet populé
-        let familleData: FamillesOlfactive | undefined;
-        if (typeof parfum.familleOlfactive === 'object' && parfum.familleOlfactive !== null) {
-          familleData = parfum.familleOlfactive as FamillesOlfactive;
-        }
-
-        const scoring = ParfumScoringEngine.calculerScore(parfum, reponses, familleData);
+        const scoring = ParfumScoringEngine.calculerScore(parfum, reponses);
         parfumsAvecScore.push(scoring);
 
         // Debug pour les premiers parfums
@@ -235,7 +229,7 @@ export const getRecommandations = async (req: ExtendedRequest, res: Response) =>
           });
         }
 
-        if (scoring.details.genreCompatible) {
+        if (scoring.details.filtreGenre) {
           parfumsCompatibles++;
         } else {
           parfumsIncompatibles++;
@@ -371,12 +365,7 @@ export const testScoring = async (req: ExtendedRequest, res: Response) => {
     }
 
     const resultatsTest = (parfumsTest.docs as unknown as Parfum[]).map(parfum => {
-      let familleData: FamillesOlfactive | undefined;
-      if (typeof parfum.familleOlfactive === 'object' && parfum.familleOlfactive !== null) {
-        familleData = parfum.familleOlfactive as FamillesOlfactive;
-      }
-
-      return ParfumScoringEngine.calculerScore(parfum, reponsesTest, familleData);
+      return ParfumScoringEngine.calculerScore(parfum, reponsesTest);
     });
 
     const meilleurs = ParfumScoringEngine.trierParfumsParScore(resultatsTest, 0, 10);
