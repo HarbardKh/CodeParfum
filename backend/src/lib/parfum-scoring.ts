@@ -1,10 +1,10 @@
-import type { Parfum, FamillesOlfactive } from '../payload-types';
+import type { Parfum } from '../payload-types';
 
 export interface QuestionnaireReponses {
-  famillesOlfactives: string[]; // IDs des familles préférées (1-3)
-  notesAimees: string[]; // Notes aimées (1-5) 
-  notesDetestees: string[]; // Notes à éviter (1-5)
-  genre: string; // Genre recherché (homme/femme/mixte)
+  famillesOlfactives: string[];
+  notesAimees: string[];
+  notesDetestees: string[];
+  genre: string;
 }
 
 export interface ParfumAvecScore {
@@ -12,256 +12,142 @@ export interface ParfumAvecScore {
   score: number;
   details: {
     scoreFamilles: number;
-    scoreNotesAimees: number;
-    scoreNotesEvitees: number;
-    scoreUsage: number;
-    genreCompatible: boolean;
+    scoreNotes: number;
+    filtreGenre: boolean;
   };
 }
 
 /**
- * Système de scoring intelligent pour recommandations de parfums
- * Score sur 100 points selon le plan:
- * - Familles olfactives: max 30 points
- * - Notes aimées: max 30 points
- * - Notes à éviter: max -20 points (pénalité)
- * - Usage: max 10 points
- * - Genre: filtrage strict (exclusion)
+ * Moteur de scoring pour les recommandations de parfums.
+ * Score total sur 100 points.
+ * - Filtre Genre: Éliminatoire.
+ * - Score Familles: max 40 points.
+ * - Score Notes: max 60 points (incluant pénalités).
  */
 export class ParfumScoringEngine {
-  
-  /**
-   * Calcule le score d'un parfum selon les préférences utilisateur
-   */
-  static calculerScore(
-    parfum: Parfum, 
-    reponses: QuestionnaireReponses, 
-    familleData?: FamillesOlfactive
-  ): ParfumAvecScore {
-    
-    // 1. Vérification genre (filtrage strict)
-    const genreCompatible = this.verifierGenreCompatible(parfum, reponses.genre);
-    if (!genreCompatible) {
-      return {
-        parfum,
-        score: 0,
-        details: {
-          scoreFamilles: 0,
-          scoreNotesAimees: 0,
-          scoreNotesEvitees: 0,
-          scoreUsage: 0,
-          genreCompatible: false
-        }
-      };
-    }
 
-    // 2. Score familles olfactives (max 30 points)
-    const scoreFamilles = this.calculerScoreFamilles(parfum, reponses.famillesOlfactives, familleData);
-    
-    // 3. Score notes aimées (max 30 points)
-    const scoreNotesAimees = this.calculerScoreNotesAimees(parfum, reponses.notesAimees);
-    
-    // 4. Score notes à éviter (max -20 points)
-    const scoreNotesEvitees = this.calculerScoreNotesEvitees(parfum, reponses.notesDetestees);
-    
-    // 5. Score usage - désactivé car plus d'occasion dans le questionnaire
-    const scoreUsage = 0;
-    
-    const scoreTotal = Math.max(0, scoreFamilles + scoreNotesAimees + scoreNotesEvitees + scoreUsage);
-    
+  /**
+   * Orchestrateur principal du calcul de score.
+   */
+  static calculerScore(parfum: Parfum, reponses: QuestionnaireReponses): ParfumAvecScore {
+    const details = {
+      scoreFamilles: 0,
+      scoreNotes: 0,
+      filtreGenre: false,
+    };
+
+    // 1. Filtre éliminatoire par genre
+    if (!this.verifierGenreCompatible(parfum, reponses.genre)) {
+      return { parfum, score: 0, details };
+    }
+    details.filtreGenre = true;
+
+    // 2. Calcul du score des familles olfactives (max 40 pts)
+    details.scoreFamilles = this.calculerScoreFamilles(parfum, reponses.famillesOlfactives);
+
+    // 3. Calcul du score des notes (max 60 pts, incluant pénalités)
+    details.scoreNotes = this.calculerScoreNotes(parfum, reponses.notesAimees, reponses.notesDetestees);
+
+    const scoreTotal = details.scoreFamilles + details.scoreNotes;
+
     return {
       parfum,
-      score: Math.min(100, scoreTotal), // Plafonnement à 100
-      details: {
-        scoreFamilles,
-        scoreNotesAimees,
-        scoreNotesEvitees,
-        scoreUsage,
-        genreCompatible: true
-      }
+      score: Math.max(0, Math.min(100, Math.round(scoreTotal))), // Score final entre 0 et 100
+      details,
     };
   }
 
   /**
-   * Filtrage strict par genre selon le plan
+   * Filtre strict par genre.
    */
   private static verifierGenreCompatible(parfum: Parfum, genreRecherche: string): boolean {
-    const genreParfum = parfum.genre;
-    
+    const genreParfum = parfum.genre?.toUpperCase();
     switch (genreRecherche) {
       case 'homme':
-        return genreParfum !== 'F'; // Exclure les parfums femme
+        return genreParfum !== 'F'; // Exclut les parfums purement Femme
       case 'femme':
-        return genreParfum !== 'H'; // Exclure les parfums homme  
+        return genreParfum !== 'H'; // Exclut les parfums purement Homme
       case 'mixte':
-        return genreParfum === 'U'; // Uniquement les parfums mixtes
+        return genreParfum === 'U'; // Uniquement les parfums Unisexe
       default:
-        return true;
+        return true; // Si pas de genre spécifié, on n'exclut rien
     }
   }
 
   /**
-   * Score familles olfactives (max 30 points)
-   * +15 points par famille correspondante (max 2)
-   * -10 points si aucune correspondance
+   * Calcule le score basé sur les familles principale et secondaire.
+   * Max 40 points.
    */
-  private static calculerScoreFamilles(
-    parfum: Parfum, 
-    famillesPreferees: string[], 
-    familleData?: FamillesOlfactive
-  ): number {
-    const famillesParfum = [parfum.famillePrincipale, parfum.familleSecondaire]
-      .filter(f => f && f.trim() !== '')
-      .map(f => f.toLowerCase().trim());
-    
-    let correspondances = 0;
-    
-    // Mapping des familles pour améliorer les correspondances
-    const familleMapping: {[key: string]: string[]} = {
-      'floral': ['floral', 'florale', 'fleur', 'rose', 'jasmin', 'muguet'],
-      'florale': ['floral', 'florale', 'fleur', 'rose', 'jasmin', 'muguet'],
-      'oriental': ['oriental', 'orientale', 'épicé', 'vanille', 'ambre', 'ambré', 'ambrée'],
-      'orientale': ['oriental', 'orientale', 'épicé', 'vanille', 'ambre', 'ambré', 'ambrée'],
-      'boisé': ['boisé', 'boisée', 'bois', 'cèdre', 'santal'],
-      'boisée': ['boisé', 'boisée', 'bois', 'cèdre', 'santal'],
-      'hespéridé': ['hespéridé', 'hespéridée', 'agrume', 'citrus', 'bergamote', 'citron'],
-      'hespéridée': ['hespéridé', 'hespéridée', 'agrume', 'citrus', 'bergamote', 'citron'],
-      'frais': ['frais', 'fraîche', 'aquatique', 'marin', 'ozonic'],
-      'fraîche': ['frais', 'fraîche', 'aquatique', 'marin', 'ozonic'],
-      'fougere': ['fougère', 'fougere', 'aromatique', 'lavande', 'herbes'],
-      'fougère': ['fougère', 'fougere', 'aromatique', 'lavande', 'herbes'],
-      'aromatique': ['aromatique', 'fougère', 'fougere', 'herbes', 'lavande', 'thym', 'basilic'],
-      'fruité': ['fruité', 'fruitée', 'fruit', 'pomme', 'pêche', 'poire']
-    };
-    
-    for (const famillePref of famillesPreferees) {
-      const famillePrefNorm = famillePref.toLowerCase().trim();
-      
-      // Obtenir les synonymes de la famille préférée
-      const synonymes = familleMapping[famillePrefNorm] || [famillePrefNorm];
-      
-      // Vérification famille principale/secondaire avec synonymes
-      for (const synonyme of synonymes) {
-        if (famillesParfum.some(fp => fp.includes(synonyme) || synonyme.includes(fp))) {
-          correspondances++;
-          break; // Une seule correspondance par famille préférée
-        }
-      }
-      
-      // Vérification avec les données de famille olfactive si disponible
-      if (familleData && typeof parfum.familleOlfactive === 'object') {
-        const nomFamilleParfum = (parfum.familleOlfactive as FamillesOlfactive).nom?.toLowerCase();
-        if (nomFamilleParfum) {
-          for (const synonyme of synonymes) {
-            if (nomFamilleParfum.includes(synonyme) || synonyme.includes(nomFamilleParfum)) {
-              correspondances++;
-              break;
-            }
-          }
-        }
-      }
+  private static calculerScoreFamilles(parfum: Parfum, famillesPreferees: string[]): number {
+    let score = 0;
+    const famillesNormalisees = famillesPreferees.map(f => f.toLowerCase().trim());
+
+    const famillePrincipale = parfum.famillePrincipale?.toLowerCase().trim();
+    const familleSecondaire = parfum.familleSecondaire?.toLowerCase().trim();
+
+    // +25 points pour la famille principale
+    if (famillePrincipale && famillesNormalisees.includes(famillePrincipale)) {
+      score += 25;
     }
-    
-    correspondances = Math.min(2, correspondances); // Max 2 correspondances
-    
-    if (correspondances === 0) {
-      return -10; // Pénalité aucune correspondance
+
+    // +15 points pour la famille secondaire
+    if (familleSecondaire && famillesNormalisees.includes(familleSecondaire)) {
+      score += 15;
     }
-    
-    return correspondances * 15; // 15 points par correspondance
+
+    return score;
   }
 
   /**
-   * Score notes aimées (max 30 points)
-   * +6 points par note aimée présente
-   * +6 bonus si 3+ notes aimées présentes
+   * Calcule le score basé sur les notes aimées et détestées.
+   * Score pondéré par type de note (tête, coeur, fond).
+   * Max 60 points.
    */
-  private static calculerScoreNotesAimees(parfum: Parfum, notesAimees: string[]): number {
-    if (notesAimees.length === 0) return 0;
+  private static calculerScoreNotes(parfum: Parfum, notesAimees: string[], notesDetestees: string[]): number {
+    let score = 0;
+    const notesAimeesNorm = notesAimees.map(n => n.toLowerCase().trim());
+    const notesDetesteesNorm = notesDetestees.map(n => n.toLowerCase().trim());
+
+    const notesTete = this.parseAndNormalizeNotes(parfum.noteTete);
+    const notesCoeur = this.parseAndNormalizeNotes(parfum.noteCoeur);
+    const notesFond = this.parseAndNormalizeNotes(parfum.noteFond);
+
+    // --- Score notes aimées ---
+    const scoreTete = notesTete.filter(note => notesAimeesNorm.includes(note)).length * 3;
+    const scoreCoeur = notesCoeur.filter(note => notesAimeesNorm.includes(note)).length * 5;
+    const scoreFond = notesFond.filter(note => notesAimeesNorm.includes(note)).length * 5;
     
-    const notesParfum = this.extraireNotesParfum(parfum);
-    let notesCorrespondantes = 0;
+    score += scoreTete + scoreCoeur + scoreFond;
+
+    // --- Pénalité notes détestées ---
+    const penaliteTete = notesTete.filter(note => notesDetesteesNorm.includes(note)).length * 10;
+    const penaliteCoeur = notesCoeur.filter(note => notesDetesteesNorm.includes(note)).length * 10;
+    const penaliteFond = notesFond.filter(note => notesDetesteesNorm.includes(note)).length * 10;
     
-    for (const noteAimee of notesAimees) {
-      const noteNorm = noteAimee.toLowerCase().trim();
-      if (notesParfum.some(np => np.includes(noteNorm) || noteNorm.includes(np))) {
-        notesCorrespondantes++;
-      }
-    }
-    
-    let score = notesCorrespondantes * 6;
-    
-    // Bonus si 3+ notes aimées correspondent
-    if (notesCorrespondantes >= 3) {
-      score += 6;
-    }
-    
-    return Math.min(30, score); // Plafonnement à 30
+    const totalPenalite = Math.min(20, penaliteTete + penaliteCoeur + penaliteFond); // Malus max de -20
+    score -= totalPenalite;
+
+    return Math.min(60, score); // Plafonnement à 60 points pour les notes
   }
 
   /**
-   * Score notes à éviter (max -20 points de pénalité)
-   * -10 points si 1 note à éviter présente
-   * -15 points si 2 notes à éviter présentes  
-   * -20 points si 3+ notes à éviter présentes
+   * Transforme une chaîne de notes en un tableau de notes normalisées.
+   * Ex: "Citron, Menthe - Rose" -> ['citron', 'menthe', 'rose']
    */
-  private static calculerScoreNotesEvitees(parfum: Parfum, notesDetestees: string[]): number {
-    if (notesDetestees.length === 0) return 0;
-    
-    const notesParfum = this.extraireNotesParfum(parfum);
-    let notesEviteesPresentes = 0;
-    
-    for (const noteDetestee of notesDetestees) {
-      const noteNorm = noteDetestee.toLowerCase().trim();
-      if (notesParfum.some(np => np.includes(noteNorm) || noteNorm.includes(np))) {
-        notesEviteesPresentes++;
-      }
-    }
-    
-    if (notesEviteesPresentes === 0) return 0;
-    if (notesEviteesPresentes === 1) return -10;
-    if (notesEviteesPresentes === 2) return -15;
-    return -20; // 3+ notes à éviter
-  }
-
-  /**
-   * Extrait toutes les notes d'un parfum (tête, cœur, fond)
-   */
-  private static extraireNotesParfum(parfum: Parfum): string[] {
-    const notes: string[] = [];
-    
-    if (parfum.noteTete) {
-      notes.push(...this.parseNotes(parfum.noteTete));
-    }
-    if (parfum.noteCoeur) {
-      notes.push(...this.parseNotes(parfum.noteCoeur));
-    }
-    if (parfum.noteFond) {
-      notes.push(...this.parseNotes(parfum.noteFond));
-    }
-    
-    return notes.map(n => n.toLowerCase().trim());
-  }
-
-  /**
-   * Parse les notes depuis une chaîne de caractères
-   */
-  private static parseNotes(notesString: string): string[] {
-    if (!notesString || notesString.trim() === '') return [];
-    
+  private static parseAndNormalizeNotes(notesString: string | null | undefined): string[] {
+    if (!notesString) return [];
     return notesString
-      .split(/[,;\/\-]/) // Séparateurs multiples
-      .map(note => note.trim())
+      .split(/[,/–-]/) // Sépare par virgule, slash, tiret long et court
+      .map(note => note.trim().toLowerCase())
       .filter(note => note.length > 0);
   }
 
   /**
-   * Trie et filtre les parfums selon les scores
-   * Retourne uniquement les parfums avec score >= seuilMinimum
+   * Trie les parfums par score décroissant et applique un seuil.
    */
   static trierParfumsParScore(
-    parfumsAvecScore: ParfumAvecScore[], 
-    seuilMinimum: number = 60,
+    parfumsAvecScore: ParfumAvecScore[],
+    seuilMinimum: number = 40,
     limite: number = 10
   ): ParfumAvecScore[] {
     return parfumsAvecScore
@@ -271,19 +157,19 @@ export class ParfumScoringEngine {
   }
 
   /**
-   * Catégorise les parfums par niveau de recommandation
+   * Catégorise les recommandations en niveaux de pertinence.
    */
   static categoriserRecommandations(parfumsAvecScore: ParfumAvecScore[]): {
-    parfaites: ParfumAvecScore[]; // 80-100
-    bonnes: ParfumAvecScore[]; // 60-79  
-    faibles: ParfumAvecScore[]; // 40-59
-    inadaptees: ParfumAvecScore[]; // < 40
+    parfaites: ParfumAvecScore[]; // >= 80
+    bonnes: ParfumAvecScore[];   // 60-79
+    faibles: ParfumAvecScore[];  // 40-59
+    inadaptees: ParfumAvecScore[];// < 40
   } {
-    return {
-      parfaites: parfumsAvecScore.filter(p => p.score >= 80),
-      bonnes: parfumsAvecScore.filter(p => p.score >= 60 && p.score < 80),
-      faibles: parfumsAvecScore.filter(p => p.score >= 40 && p.score < 60),
-      inadaptees: parfumsAvecScore.filter(p => p.score < 40)
-    };
+    const parfaites = parfumsAvecScore.filter(p => p.score >= 80);
+    const bonnes = parfumsAvecScore.filter(p => p.score >= 60 && p.score < 80);
+    const faibles = parfumsAvecScore.filter(p => p.score >= 40 && p.score < 60);
+    const inadaptees = parfumsAvecScore.filter(p => p.score < 40);
+
+    return { parfaites, bonnes, faibles, inadaptees };
   }
 }
