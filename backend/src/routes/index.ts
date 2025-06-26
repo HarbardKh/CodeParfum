@@ -9,7 +9,6 @@ import { protectAgainstCsrf, generateCsrfToken } from '../middleware/csrfProtect
 import cookieParser from 'cookie-parser';
 import healthRouter from './api/health';
 import choganRouter from './api/chogan';
-import { choganProcess, choganTest } from './api/chogan';
 
 export const initRoutes = (app: express.Express): void => {
   // Route pour obtenir un token CSRF (sans protection CSRF car c'est pour obtenir le token)
@@ -62,7 +61,4 @@ export const initRoutes = (app: express.Express): void => {
 
   app.get('/api/conseiller/list-familles', listFamilles);
   app.get('/api/conseiller/inspect-parfums', inspectParfums);
-
-  // Routes de l'API Chogan
-  app.post('/api/chogan/process', choganProcess);
 };
