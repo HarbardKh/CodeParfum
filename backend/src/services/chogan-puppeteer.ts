@@ -263,167 +263,38 @@ export class ChoganPuppeteerAutomation {
       if (passwordField) {
         await passwordField.click(); // Focus d'abord
         await passwordField.evaluate(el => (el as HTMLInputElement).value = ''); // Clear le champ
-        await this.page.type('input[type="password"]', credentials.password, { 
-          delay: Math.random() * 50 + 80 // Délai variable entre 80-130ms
-        });
+        await this.page.type('input[type="password"], input[name*="password"]', credentials.password, { delay: 50 });
       }
       
-      // Petite pause avant de soumettre
-      await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 700));
-      
-      // Prendre une capture avant soumission
+      // Prendre une capture juste avant le clic
       await this.takeScreenshot('before-login-submit');
-      
-      // Cliquer sur le bouton de connexion - SIMPLE ET DIRECT
-      choganLogger.info('CHOGAN_PUPPETEER', 'Clic sur le bouton de connexion...');
-      
+
+      // CLIC ROBUSTE sur le bouton de connexion basé sur sa classe CSS
+      choganLogger.info('CHOGAN_PUPPETEER', 'Recherche du bouton de connexion avec la classe ".btn--primary"...');
+      const loginButtonSelector = '.btn--primary'; // Ce sélecteur est indépendant de la langue
+
       try {
-        // Attendre que le bouton soit présent
-        await this.page.waitForSelector('#btn_login', { timeout: 10000 });
-        
-        // Vérifier que le bouton est visible et cliquable
-        const buttonInfo = await this.page.evaluate(() => {
-          const button = document.querySelector('#btn_login') as HTMLElement;
-          if (!button) return null;
-          
-          return {
-            text: button.textContent?.trim(),
-            visible: button.offsetParent !== null,
-            disabled: button.getAttribute('disabled'),
-            tagName: button.tagName,
-            href: button.getAttribute('href')
-          };
-        });
-        
-        choganLogger.info('CHOGAN_PUPPETEER', 'Bouton trouvé:', buttonInfo);
-        
-        if (!buttonInfo) {
-          throw new Error('Bouton #btn_login non trouvé');
-        }
-        
-        // Clic direct sur le bouton
-        await this.page.click('#btn_login');
-        choganLogger.info('CHOGAN_PUPPETEER', '✅ Clic effectué sur #btn_login');
-        
-        // Attendre un peu pour la soumission
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        
-        // DIAGNOSTIC COMPLET - Analyser immédiatement après soumission
-        choganLogger.info('CHOGAN_PUPPETEER', '🔍 DIAGNOSTIC: Recherche popup "robot" ultra-agressive...');
-          
-          await this.page.evaluate(() => {
-            console.log('=== DIAGNOSTIC POPUP ROBOT ===');
-            console.log('URL:', window.location.href);
-            console.log('Title:', document.title);
-            
-            // RECHERCHE 1: Dans tout le document
-            const fullText = document.documentElement.innerText || document.body.innerText || '';
-            console.log('🔍 Recherche "robot" dans le texte complet:', fullText.toLowerCase().includes('robot'));
-            console.log('🔍 Recherche "prouver" dans le texte complet:', fullText.toLowerCase().includes('prouver'));
-            
-            // RECHERCHE 2: Tous les éléments contenant "robot" OU "prouver"
-            const allElements = Array.from(document.querySelectorAll('*'));
-            const robotElements = allElements.filter(el => {
-              const text = el.textContent?.toLowerCase() || '';
-              return text.includes('robot') || text.includes('prouver') || text.includes('prove');
-            });
-            console.log('🤖 Éléments ROBOT/PROUVER trouvés:', robotElements.length);
-            robotElements.forEach(el => {
-              console.log('- ROBOT/PROUVER:', el.tagName, el.className, el.textContent?.substring(0, 150));
-              console.log('  Style:', (el as HTMLElement).style.cssText);
-              console.log('  Visible:', (el as HTMLElement).offsetParent !== null);
-            });
-            
-            // RECHERCHE 3: Éléments avec z-index élevé (popups)
-            const highZElements = allElements.filter(el => {
-              const style = window.getComputedStyle(el);
-              const zIndex = parseInt(style.zIndex);
-              return zIndex > 1000 || style.position === 'fixed';
-            });
-            console.log('⬆️ Éléments Z-INDEX élevé trouvés:', highZElements.length);
-            highZElements.forEach(el => {
-              const style = window.getComputedStyle(el);
-              console.log('- HIGH-Z:', el.tagName, el.className, `z:${style.zIndex}`, el.textContent?.substring(0, 100));
-            });
-            
-            // RECHERCHE 4: Éléments cachés mais récemment créés
-            const recentElements = allElements.filter(el => {
-              return el.tagName.includes('DIV') && (
-                el.className.includes('popup') || 
-                el.className.includes('modal') || 
-                el.className.includes('overlay') ||
-                el.className.includes('challenge') ||
-                el.className.includes('swal')
-              );
-            });
-            console.log('🆕 Éléments POPUP récents:', recentElements.length);
-            recentElements.forEach(el => {
-              console.log('- POPUP:', el.tagName, el.className, el.textContent?.substring(0, 100));
-            });
-          });
-        
-                  // Attendre suffisamment pour laisser la popup anti-robot apparaître
-          await new Promise(resolve => setTimeout(resolve, 7000));
-          
-          choganLogger.info('CHOGAN_PUPPETEER', '🔍 DIAGNOSTIC: Analyse après attente de 7s (popup robot)...');
-        
-        // Vérifier et gérer la popup anti-robot si elle apparaît
-                 // Au lieu d'attendre la navigation, on va gérer la popup immédiatement
-         await this.handleAntiRobotPopup();
-        
-        // Si pas de popup détectée, attendre un peu et essayer la navigation
-        try {
-          choganLogger.info('CHOGAN_PUPPETEER', '⏱️ Tentative de navigation (timeout 10s)...');
-          await this.page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 });
-          choganLogger.info('CHOGAN_PUPPETEER', '✅ Navigation réussie sans popup');
-        } catch (navError) {
-          choganLogger.warn('CHOGAN_PUPPETEER', '⚠️ Navigation échouée - possible popup non détectée');
-          
-          // Nouvelle tentative de détection popup avec méthodes alternatives
-          await this.handleAntiRobotPopupAlternative();
-          
-          // Tentative finale de navigation
-          try {
-            await this.page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 15000 });
-            choganLogger.info('CHOGAN_PUPPETEER', '✅ Navigation réussie après gestion popup alternative');
-          } catch (finalError) {
-            choganLogger.error('CHOGAN_PUPPETEER', '❌ Navigation définitivement échouée');
-            throw new Error(`Navigation échouée malgré gestion popup: ${finalError instanceof Error ? finalError.message : 'Erreur inconnue'}`);
+          await this.page.waitForSelector(loginButtonSelector, { timeout: 15000, visible: true });
+          const loginButton = await this.page.$(loginButtonSelector);
+
+          if (loginButton) {
+              choganLogger.info('CHOGAN_PUPPETEER', '✅ Bouton de connexion trouvé. Tentative de clic...');
+              await loginButton.click();
+              choganLogger.info('CHOGAN_PUPPETEER', '✅ Clic effectué sur le bouton.');
+          } else {
+              throw new Error('Bouton de connexion avec la classe .btn--primary introuvable après attente.');
           }
-        }
-        
-      } catch (error) {
-        // Debug : analyser tous les éléments de la page pour diagnostic
-        const pageElements = await this.page.evaluate(() => {
-          const allButtons = Array.from(document.querySelectorAll('button, input, a'));
-          return allButtons.map(btn => ({
-            tagName: btn.tagName,
-            type: (btn as HTMLInputElement).type || '',
-            value: (btn as HTMLInputElement).value || '',
-            textContent: btn.textContent?.trim() || '',
-            className: btn.className || '',
-            id: btn.id || '',
-            href: (btn as HTMLAnchorElement).href || ''
-          }));
-        });
-        
-        choganLogger.error('CHOGAN_PUPPETEER', 'Erreur détection bouton #btn_login', { 
-          error: error instanceof Error ? error.message : 'Erreur inconnue',
-          elements: pageElements.slice(0, 15)
-        });
-        
-        await this.takeScreenshot('no-button-found-debug');
-        throw new Error(`Bouton de connexion #btn_login introuvable: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+      } catch (e) {
+          choganLogger.error('CHOGAN_PUPPETEER', 'Erreur lors de la recherche ou du clic sur le bouton de connexion.', { error: e });
+          await this.takeScreenshot('login-button-not-found-error');
+          throw new Error(`Le bouton de connexion avec la classe ".btn--primary" n'a pas pu être trouvé ou cliqué.`);
       }
+
+      // Laisser du temps à la page de réagir et de naviguer
+      choganLogger.info('CHOGAN_PUPPETEER', '⏱️ Attente de navigation après le clic...');
       
-      // Vérifier que la connexion a réussi
-      const currentUrl = this.page.url();
-      if (currentUrl.includes('login')) {
-        throw new Error('Connexion échouée - toujours sur la page de login');
-      }
-      
-      choganLogger.info('CHOGAN_PUPPETEER', 'Connexion revendeur réussie');
-      await this.takeScreenshot('login-success');
+      // Attendre une popup anti-robot potentielle
+      await this.handleAntiRobotPopup();
       
     } catch (error) {
       await this.takeScreenshot('login-error');
@@ -647,106 +518,6 @@ export class ChoganPuppeteerAutomation {
     } catch (error) {
       choganLogger.error('CHOGAN_PUPPETEER', 'Erreur lors de la gestion popup anti-robot', {}, error as Error);
       await this.takeScreenshot('popup-error');
-    }
-  }
-
-  /**
-   * Méthode alternative pour détecter la popup anti-robot (iframes, shadow DOM, etc.)
-   */
-  private async handleAntiRobotPopupAlternative(): Promise<void> {
-    if (!this.page) throw new Error('Page non initialisée');
-    
-    try {
-      choganLogger.info('CHOGAN_PUPPETEER', '🔍 MÉTHODE ALTERNATIVE: Recherche popup dans iframes/shadow DOM...');
-      
-      // Méthode 1: Chercher dans tous les iframes de la page
-      const iframeResults = await this.page.evaluate(() => {
-        const iframes = Array.from(document.querySelectorAll('iframe'));
-        const results: any[] = [];
-        
-        iframes.forEach((iframe, index) => {
-          try {
-            if (iframe.contentDocument) {
-              const iframeText = iframe.contentDocument.body.innerText.toLowerCase();
-              const hasRobot = iframeText.includes('robot');
-              const hasProve = iframeText.includes('prove') || iframeText.includes('prouv');
-              
-              if (hasRobot || hasProve) {
-                results.push({
-                  iframeIndex: index,
-                  text: iframeText.substring(0, 200),
-                  hasRobot,
-                  hasProve,
-                                     buttons: Array.from(iframe.contentDocument.querySelectorAll('button, input[type="button"]')).map(btn => ({
-                     text: btn.textContent,
-                     className: btn.className,
-                     onclick: (btn as HTMLElement).onclick?.toString()
-                   }))
-                });
-              }
-            }
-          } catch (e) {
-            // Cross-origin iframe, ne peut pas y accéder
-          }
-        });
-        
-        return results;
-      });
-      
-      choganLogger.info('CHOGAN_PUPPETEER', '📊 Résultats iframe:', { 
-        iframesFound: iframeResults.length,
-        details: iframeResults 
-      });
-      
-      // Méthode 2: Force le clic sur TOUS les boutons qui pourraient être "OK"
-      if (iframeResults.length === 0) {
-        choganLogger.info('CHOGAN_PUPPETEER', '💥 FORCE: Clic sur tous les boutons suspects...');
-        
-        const forceClicked = await this.page.evaluate(() => {
-          const allButtons = Array.from(document.querySelectorAll('button, input[type="button"], input[type="submit"], a, div[role="button"], span[onclick]'));
-          let clicked = false;
-          
-          allButtons.forEach(btn => {
-            const text = btn.textContent?.toLowerCase() || '';
-            const value = (btn as HTMLInputElement).value?.toLowerCase() || '';
-            
-            if ((text === 'ok' || text === 'okay' || value === 'ok') && 
-                (btn as HTMLElement).offsetParent !== null) {
-              console.log('Force clicking button:', btn);
-              (btn as HTMLElement).click();
-              clicked = true;
-            }
-          });
-          
-          return clicked;
-        });
-        
-        if (forceClicked) {
-          choganLogger.info('CHOGAN_PUPPETEER', '💥 FORCE: Bouton OK cliqué');
-          await new Promise(resolve => setTimeout(resolve, 3000));
-          
-          // Re-essayer le clic login
-          await this.page.click('#btn_login');
-          choganLogger.info('CHOGAN_PUPPETEER', '🔄 FORCE: Re-clic login après force OK');
-        }
-      }
-      
-      // Méthode 3: Attendre que des éléments dynamiques apparaissent
-      try {
-        choganLogger.info('CHOGAN_PUPPETEER', '⏳ Attente éléments dynamiques...');
-        await this.page.waitForFunction(() => {
-          const text = document.body.innerText.toLowerCase();
-          return text.includes('robot') && (text.includes('prove') || text.includes('prouv'));
-        }, { timeout: 5000 });
-        
-        choganLogger.info('CHOGAN_PUPPETEER', '🎯 Popup détectée dynamiquement !');
-        await this.handleAntiRobotPopup(); // Re-essayer la détection normale
-      } catch (waitError) {
-        choganLogger.info('CHOGAN_PUPPETEER', '⏱️ Pas de popup détectée dynamiquement');
-      }
-      
-    } catch (error) {
-      choganLogger.error('CHOGAN_PUPPETEER', 'Erreur méthode alternative popup', {}, error as Error);
     }
   }
 
