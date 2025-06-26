@@ -268,7 +268,7 @@ export class ChoganPuppeteerAutomation {
       
       // Prendre une capture juste avant le clic
       await this.takeScreenshot('before-login-submit');
-
+      
       // CLIC ROBUSTE sur le bouton de connexion basé sur sa classe CSS
       choganLogger.info('CHOGAN_PUPPETEER', 'Recherche du bouton de connexion avec la classe ".btn--primary"...');
       const loginButtonSelector = '.btn--primary'; // Ce sélecteur est indépendant de la langue
@@ -278,10 +278,27 @@ export class ChoganPuppeteerAutomation {
           const loginButton = await this.page.$(loginButtonSelector);
 
           if (loginButton) {
-              choganLogger.info('CHOGAN_PUPPETEER', '✅ Bouton de connexion trouvé. Tentative de clic...');
-              await loginButton.click();
-              choganLogger.info('CHOGAN_PUPPETEER', '✅ Clic effectué sur le bouton.');
-              await this.takeScreenshot('after-login-click');
+              choganLogger.info('CHOGAN_PUPPETEER', '✅ Bouton de connexion trouvé. Clic et attente de navigation...');
+              
+              // On attend la navigation QUI EST DÉCLENCHÉE par le clic.
+              // C'est la méthode la plus robuste pour gérer les connexions.
+              await Promise.all([
+                this.page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }),
+                loginButton.click(),
+              ]);
+
+              choganLogger.info('CHOGAN_PUPPETEER', '✅ Navigation détectée après le clic.');
+              await this.takeScreenshot('after-login-navigation');
+
+              // Vérification cruciale : sommes-nous toujours sur la page de login ?
+              const currentUrl = this.page.url();
+              if (currentUrl.includes('login')) {
+                choganLogger.error('CHOGAN_PUPPETEER', 'Échec de la connexion, toujours sur la page de login.', { url: currentUrl });
+                throw new Error('Connexion échouée - toujours sur la page de login après le clic.');
+              }
+
+              choganLogger.info('CHOGAN_PUPPETEER', 'Connexion réussie, URL a changé.', { url: currentUrl });
+
           } else {
               throw new Error('Bouton de connexion avec la classe .btn--primary introuvable après attente.');
           }
@@ -564,15 +581,15 @@ export class ChoganPuppeteerAutomation {
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     // Aller directement à la page Smart Order
-    await this.page.goto('https://www.chogangroupspa.com/smartorder', {
-      waitUntil: 'networkidle2',
+      await this.page.goto('https://www.chogangroupspa.com/smartorder', {
+        waitUntil: 'networkidle2',
       timeout: 30000
-    });
+      });
     
     // Attendre que Cloudflare se charge si nécessaire
     await this.waitForCloudflareChallenge();
-    
-    await this.takeScreenshot('smartorder-access');
+      
+      await this.takeScreenshot('smartorder-access');
     
     // VÉRIFICATION ROBUSTE: analyser l'URL et le contenu de la page
     const pageUrl = this.page.url();
