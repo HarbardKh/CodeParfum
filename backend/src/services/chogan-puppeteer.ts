@@ -281,6 +281,7 @@ export class ChoganPuppeteerAutomation {
               choganLogger.info('CHOGAN_PUPPETEER', '✅ Bouton de connexion trouvé. Tentative de clic...');
               await loginButton.click();
               choganLogger.info('CHOGAN_PUPPETEER', '✅ Clic effectué sur le bouton.');
+              await this.takeScreenshot('after-login-click');
           } else {
               throw new Error('Bouton de connexion avec la classe .btn--primary introuvable après attente.');
           }
@@ -552,26 +553,45 @@ export class ChoganPuppeteerAutomation {
   }
 
   /**
-   * Étape 3: Accéder à Smart Order
+   * Étape 3: Accéder à la page Smart Order
    */
   private async accessSmartOrder(): Promise<void> {
     if (!this.page) throw new Error('Page non initialisée');
     
     choganLogger.info('CHOGAN_PUPPETEER', 'Accès à Smart Order...');
     
-    try {
-      await this.page.goto('https://www.chogangroupspa.com/smartorder', {
-        waitUntil: 'networkidle2',
-        timeout: 30000 // Timeout plus long pour Smart Order
-      });
-      
-      await this.takeScreenshot('smartorder-access');
-      choganLogger.info('CHOGAN_PUPPETEER', 'Accès Smart Order réussi');
-      
-    } catch (error) {
-      await this.takeScreenshot('smartorder-error');
-      throw new Error(`Accès Smart Order échoué: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+    // Attendre que la page se stabilise après la connexion
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Aller directement à la page Smart Order
+    await this.page.goto('https://www.chogangroupspa.com/smartorder', {
+      waitUntil: 'networkidle2',
+      timeout: 30000
+    });
+    
+    // Attendre que Cloudflare se charge si nécessaire
+    await this.waitForCloudflareChallenge();
+    
+    await this.takeScreenshot('smartorder-access');
+    
+    // VÉRIFICATION ROBUSTE: analyser l'URL et le contenu de la page
+    const pageUrl = this.page.url();
+    const pageContent = await this.page.content();
+
+    const isBlockedByCloudflare = pageContent.includes('challenges.cloudflare.com') || pageContent.includes('DDoS protection by Cloudflare');
+    const isOnSmartOrder = pageUrl.includes('smartorder');
+    
+    if (isBlockedByCloudflare) {
+      choganLogger.error('CHOGAN_PUPPETEER', 'Blocage Cloudflare détecté sur la page Smart Order.', { url: pageUrl });
+      throw new Error('Accès à Smart Order bloqué par Cloudflare.');
     }
+    
+    if (!isOnSmartOrder) {
+      choganLogger.error('CHOGAN_PUPPETEER', 'Redirection inattendue, impossible d\'accéder à Smart Order.', { url: pageUrl });
+      throw new Error(`Impossible d'accéder à la page Smart Order. URL actuelle: ${pageUrl}`);
+    }
+    
+    choganLogger.info('CHOGAN_PUPPETEER', 'Accès Smart Order réussi');
   }
 
   /**
