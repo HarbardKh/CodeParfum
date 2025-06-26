@@ -17,85 +17,117 @@ export const debugData = async (req: ExtendedRequest, res: Response) => {
       return res.status(500).json({ error: 'Payload non initialisé' });
     }
 
-    console.log('🔍 DEBUG: Analyse des données de parfums');
+    console.log('--- INSPECTION DES DONNÉES DE SCORING ---');
 
-    // Récupérer quelques parfums pour analyse
-    const parfumsResult = await req.payload.find({
+    // 1. Récupération des familles olfactives
+    const famillesPromise = req.payload.find({
+      collection: 'familles-olfactives',
+      limit: 200,
+    });
+
+    // 2. Récupération d'un échantillon de parfums
+    const parfumsPromise = req.payload.find({
       collection: 'parfums',
       limit: 5,
       depth: 2
     });
 
-    const analyseDonnees = parfumsResult.docs.map((parfum: any) => {
-      return {
+    const [famillesResult, parfumsResult] = await Promise.all([famillesPromise, parfumsPromise]);
+
+    // --- Affichage des Familles ---
+    console.log('\n--- Familles Olfactives en Base de Données ---');
+    if (famillesResult.docs.length === 0) {
+      console.log('Aucune famille olfactive trouvée.');
+    } else {
+      famillesResult.docs.forEach((famille: any) => {
+        console.log(`- ID: ${famille.id}, Nom: ${famille.nom}`);
+      });
+    }
+    console.log('-------------------------------------------\n');
+
+    // --- Affichage des Parfums ---
+    console.log('--- Échantillon de Parfums pour Analyse ---');
+    const analyseEchantillon = parfumsResult.docs.map((parfum: any) => {
+      const familleOlfactiveRelation = (typeof parfum.familleOlfactive === 'object' && parfum.familleOlfactive !== null)
+        ? `ID: ${parfum.familleOlfactive.id}, Nom: ${parfum.familleOlfactive.nom}`
+        : `Non définie ou ID simple: ${parfum.familleOlfactive}`;
+
+      const data = {
         id: parfum.id,
         numeroParf: parfum.numeroParf,
         genre: parfum.genre,
-        famillePrincipale: parfum.famillePrincipale,
-        familleSecondaire: parfum.familleSecondaire,
-        familleOlfactive: typeof parfum.familleOlfactive === 'object' ? 
-          parfum.familleOlfactive?.nom : parfum.familleOlfactive,
-        occasion: parfum.occasion,
-        noteTete: parfum.noteTete?.substring(0, 50) + '...',
-        noteCoeur: parfum.noteCoeur?.substring(0, 50) + '...',
-        noteFond: parfum.noteFond?.substring(0, 50) + '...',
-        inspiration: parfum.inspiration?.substring(0, 50) + '...'
+        famillePrincipale_TEXTE: parfum.famillePrincipale,
+        familleSecondaire_TEXTE: parfum.familleSecondaire,
+        familleOlfactive_RELATION: familleOlfactiveRelation,
+        noteTete: parfum.noteTete,
+        noteCoeur: parfum.noteCoeur,
+        noteFond: parfum.noteFond,
       };
+      console.log(JSON.stringify(data, null, 2));
+      return data;
     });
-
-    // Test avec des données réalistes
-    const reponsesTest: QuestionnaireReponses = {
-      famillesOlfactives: ['Florale'], // Correspond à ce que l'utilisateur a choisi
-      notesAimees: ['Fleur d\'oranger', 'Jasmin'],
-      notesDetestees: ['Violette'],
-      genre: 'femme'
-    };
-
-    console.log('🎯 Test avec réponses utilisateur réelles:', reponsesTest);
-
-    // Calculer les scores pour ces parfums
-    const scoresDetailles = parfumsResult.docs.map((parfum: any) => {
-      let familleData: FamillesOlfactive | undefined;
-      if (typeof parfum.familleOlfactive === 'object' && parfum.familleOlfactive !== null) {
-        familleData = parfum.familleOlfactive as FamillesOlfactive;
-      }
-
-      const scoring = ParfumScoringEngine.calculerScore(parfum as Parfum, reponsesTest, familleData);
-      
-      return {
-        parfum: parfum.numeroParf,
-        score: scoring.score,
-        details: scoring.details,
-        donnees: {
-          genre: parfum.genre,
-          famillePrincipale: parfum.famillePrincipale,
-          familleSecondaire: parfum.familleSecondaire,
-          occasion: parfum.occasion,
-          noteTete: parfum.noteTete,
-          noteCoeur: parfum.noteCoeur,
-          noteFond: parfum.noteFond
-        }
-      };
-    });
+    console.log('-------------------------------------------');
 
     res.json({
-      success: true,
-      message: 'Analyse des données de debug',
-      data: {
-        totalParfums: parfumsResult.totalDocs,
-        echantillon: analyseDonnees,
-        reponsesTest,
-        scoresDetailles,
-        problemesPotentiels: [
-          'Vérifier si les familles olfactives correspondent',
-          'Vérifier si les notes sont bien parsées',
-          'Vérifier le filtrage par genre'
-        ]
-      }
+      message: 'Les données d\'inspection ont été affichées dans la console du backend.',
+      familles: famillesResult.docs.map((f: any) => ({ id: f.id, nom: f.nom })),
+      echantillonParfums: analyseEchantillon,
     });
 
   } catch (error) {
-    console.error('Erreur debug:', error);
+    console.error('Erreur lors de l\'inspection des données:', error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+};
+
+/**
+ * Endpoint pour inspecter un échantillon de parfums et leurs données de scoring
+ * GET /api/conseiller/inspect-parfums
+ */
+export const inspectParfums = async (req: ExtendedRequest, res: Response) => {
+  try {
+    if (!req.payload) {
+      return res.status(500).json({ error: 'Payload non initialisé' });
+    }
+
+    console.log('🔍 Inspection d\'un échantillon de parfums pour analyse du scoring...');
+
+    const parfumsResult = await req.payload.find({
+      collection: 'parfums',
+      limit: 5,
+      depth: 2 // Pour peupler la relation familleOlfactive
+    });
+
+    console.log('--- Échantillon de Parfums pour Analyse ---');
+    const analyseEchantillon = parfumsResult.docs.map((parfum: any) => {
+      const familleOlfactiveRelation = (typeof parfum.familleOlfactive === 'object' && parfum.familleOlfactive !== null)
+        ? `ID: ${parfum.familleOlfactive.id}, Nom: ${parfum.familleOlfactive.nom}`
+        : `Non définie ou ID simple: ${parfum.familleOlfactive}`;
+
+      const data = {
+        id: parfum.id,
+        numeroParf: parfum.numeroParf,
+        genre: parfum.genre,
+        famillePrincipale_TEXTE: parfum.famillePrincipale,
+        familleSecondaire_TEXTE: parfum.familleSecondaire,
+        familleOlfactive_RELATION: familleOlfactiveRelation,
+        noteTete: parfum.noteTete,
+        noteCoeur: parfum.noteCoeur,
+        noteFond: parfum.noteFond,
+      };
+      console.log(data);
+      return data;
+    });
+    console.log('-------------------------------------------');
+
+    res.json({
+      message: 'Un échantillon de 5 parfums a été affiché dans la console du backend.',
+      totalParfums: parfumsResult.totalDocs,
+      data: analyseEchantillon,
+    });
+
+  } catch (error) {
+    console.error('Erreur lors de l\'inspection des parfums:', error);
     res.status(500).json({ error: (error as Error).message });
   }
 };
@@ -370,5 +402,36 @@ export const testScoring = async (req: ExtendedRequest, res: Response) => {
       message: 'Erreur lors du test',
       error: (error as Error).message
     });
+  }
+};
+
+// Endpoint temporaire pour lister les familles
+export const listFamilles = async (req: ExtendedRequest, res: Response) => {
+  try {
+    const familles = await payload.find({
+      collection: 'familles-olfactives',
+      limit: 200,
+      depth: 0,
+    });
+
+    console.log('--- Familles Olfactives en Base de Données ---');
+    if (familles.docs.length === 0) {
+      console.log('Aucune famille olfactive trouvée dans la collection.');
+    } else {
+      familles.docs.forEach(famille => {
+        console.log(`- ID: ${famille.id}, Nom: ${famille.nom}`);
+      });
+    }
+    console.log('-------------------------------------------');
+    console.log(`Total: ${familles.totalDocs} familles trouvées.`);
+
+    res.json({
+      message: 'La liste des familles a été affichée dans la console du backend.',
+      total: familles.totalDocs,
+      data: familles.docs.map(f => ({ id: f.id, nom: f.nom })),
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des familles.' });
   }
 }; 
