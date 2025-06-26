@@ -45,6 +45,11 @@ export class ParfumScoringEngine {
     // 2. Calcul du score des familles olfactives (max 50 pts)
     details.scoreFamilles = this.calculerScoreFamilles(parfum, reponses.famillesOlfactives);
 
+    // Règle de la "Porte d'Entrée": si aucune famille ne correspond, le parfum est disqualifié.
+    if (details.scoreFamilles === 0) {
+      return { parfum, score: 0, details };
+    }
+
     // 3. Calcul du score des notes (max 50 pts, incluant pénalités)
     details.scoreNotes = this.calculerScoreNotes(parfum, reponses.notesAimees, reponses.notesDetestees);
 
