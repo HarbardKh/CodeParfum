@@ -54,9 +54,9 @@ router.post('/submit-order', validateOrderData, async (req, res) => {
       produits: orderData.produits.length
     });
 
-    // Utiliser Puppeteer SIMPLE par défaut pour contourner Cloudflare
-    console.log('🚀 Utilisation du service Puppeteer SIMPLE...');
-    const puppeteerAutomation = new ChoganPuppeteerSimple();
+    // Utiliser le service d'automatisation Puppeteer complet et robuste
+    choganLogger.info('CHOGAN_PUPPETEER', 'Utilisation du service Puppeteer Automation...');
+    const puppeteerAutomation = new ChoganPuppeteerAutomation();
 
     // Traiter la commande
     const result = await puppeteerAutomation.processOrder(orderData);
