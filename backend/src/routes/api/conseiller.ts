@@ -247,7 +247,7 @@ export const getRecommandations = async (req: ExtendedRequest, res: Response) =>
     // 3. Trier et filtrer les meilleurs parfums
     const meilleursParfums = ParfumScoringEngine.trierParfumsParScore(
       parfumsAvecScore, 
-      15, // Seuil minimum raisonnable
+      40, // Seuil minimum relevé pour garantir la pertinence
       10 // Top 10 seulement
     );
 

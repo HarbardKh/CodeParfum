@@ -29,15 +29,30 @@ if (process.env.NODE_ENV === 'production') {
 // Application du rate limiting global
 app.use(defaultLimiter);
 
-// Configuration CORS avant tout middleware
+// Configuration CORS améliorée pour Vercel
+const allowedOrigins = [
+  process.env.FRONTEND_URL || 'https://votre-domaine-production.com',
+  'https://code-parfum.vercel.app',
+  'https://chogan-mvp.vercel.app',
+  // Regex pour accepter les URL de preview de Vercel pour ce projet
+  /^https:\/\/code-parfum-git-.*-harbardkh\.vercel\.app$/,
+  /^https:\/\/code-parfum-.*-harbardkh\.vercel\.app$/,
+];
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production'
-    ? [
-        process.env.FRONTEND_URL || 'https://votre-domaine-production.com',
-        'https://code-parfum.vercel.app',
-        'https://chogan-mvp.vercel.app' 
-      ]
-    : true, // Autorise toutes les origines en développement
+  origin: (origin, callback) => {
+    // Permettre les requêtes sans origine (ex: Postman, apps mobiles) ou celles qui correspondent à notre liste
+    if (!origin || allowedOrigins.some(pattern => {
+      if (typeof pattern === 'string') {
+        return pattern === origin;
+      }
+      return pattern.test(origin);
+    })) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-csrf-token']

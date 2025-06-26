@@ -21,17 +21,17 @@ export interface ParfumAvecScore {
  * Moteur de scoring pour les recommandations de parfums.
  * Score total sur 100 points.
  * - Filtre Genre: Éliminatoire.
- * - Score Familles: max 40 points.
- * - Score Notes: max 60 points (incluant pénalités).
+ * - Score Familles: max 50 points.
+ * - Score Notes: max 50 points (incluant pénalités).
  */
 export class ParfumScoringEngine {
-
+  
   /**
    * Orchestrateur principal du calcul de score.
    */
   static calculerScore(parfum: Parfum, reponses: QuestionnaireReponses): ParfumAvecScore {
     const details = {
-      scoreFamilles: 0,
+          scoreFamilles: 0,
       scoreNotes: 0,
       filtreGenre: false,
     };
@@ -42,14 +42,14 @@ export class ParfumScoringEngine {
     }
     details.filtreGenre = true;
 
-    // 2. Calcul du score des familles olfactives (max 40 pts)
+    // 2. Calcul du score des familles olfactives (max 50 pts)
     details.scoreFamilles = this.calculerScoreFamilles(parfum, reponses.famillesOlfactives);
 
-    // 3. Calcul du score des notes (max 60 pts, incluant pénalités)
+    // 3. Calcul du score des notes (max 50 pts, incluant pénalités)
     details.scoreNotes = this.calculerScoreNotes(parfum, reponses.notesAimees, reponses.notesDetestees);
 
     const scoreTotal = details.scoreFamilles + details.scoreNotes;
-
+    
     return {
       parfum,
       score: Math.max(0, Math.min(100, Math.round(scoreTotal))), // Score final entre 0 et 100
@@ -76,7 +76,7 @@ export class ParfumScoringEngine {
 
   /**
    * Calcule le score basé sur les familles principale et secondaire.
-   * Max 40 points.
+   * Max 50 points.
    */
   private static calculerScoreFamilles(parfum: Parfum, famillesPreferees: string[]): number {
     let score = 0;
@@ -85,14 +85,14 @@ export class ParfumScoringEngine {
     const famillePrincipale = parfum.famillePrincipale?.toLowerCase().trim();
     const familleSecondaire = parfum.familleSecondaire?.toLowerCase().trim();
 
-    // +25 points pour la famille principale
+    // +30 points pour la famille principale
     if (famillePrincipale && famillesNormalisees.includes(famillePrincipale)) {
-      score += 25;
+      score += 30;
     }
 
-    // +15 points pour la famille secondaire
+    // +20 points pour la famille secondaire
     if (familleSecondaire && famillesNormalisees.includes(familleSecondaire)) {
-      score += 15;
+      score += 20;
     }
 
     return score;
@@ -101,7 +101,7 @@ export class ParfumScoringEngine {
   /**
    * Calcule le score basé sur les notes aimées et détestées.
    * Score pondéré par type de note (tête, coeur, fond).
-   * Max 60 points.
+   * Max 50 points.
    */
   private static calculerScoreNotes(parfum: Parfum, notesAimees: string[], notesDetestees: string[]): number {
     let score = 0;
@@ -133,7 +133,7 @@ export class ParfumScoringEngine {
     const totalPenalite = Math.min(20, penaliteTete + penaliteCoeur + penaliteFond); // Malus max de -20
     score -= totalPenalite;
 
-    return Math.min(60, score); // Plafonnement à 60 points pour les notes
+    return Math.min(50, score); // Plafonnement à 50 points pour les notes
   }
 
   /**
@@ -152,7 +152,7 @@ export class ParfumScoringEngine {
    * Trie les parfums par score décroissant et applique un seuil.
    */
   static trierParfumsParScore(
-    parfumsAvecScore: ParfumAvecScore[],
+    parfumsAvecScore: ParfumAvecScore[], 
     seuilMinimum: number = 40,
     limite: number = 10
   ): ParfumAvecScore[] {
