@@ -107,12 +107,12 @@ export const inspectParfums = async (req: ExtendedRequest, res: Response) => {
       const data = {
         id: parfum.id,
         numeroParf: parfum.numeroParf,
-        genre: parfum.genre,
+          genre: parfum.genre,
         famillePrincipale_TEXTE: parfum.famillePrincipale,
         familleSecondaire_TEXTE: parfum.familleSecondaire,
         familleOlfactive_RELATION: familleOlfactiveRelation,
-        noteTete: parfum.noteTete,
-        noteCoeur: parfum.noteCoeur,
+          noteTete: parfum.noteTete,
+          noteCoeur: parfum.noteCoeur,
         noteFond: parfum.noteFond,
       };
       console.log(data);
@@ -122,7 +122,7 @@ export const inspectParfums = async (req: ExtendedRequest, res: Response) => {
 
     res.json({
       message: 'Un échantillon de 5 parfums a été affiché dans la console du backend.',
-      totalParfums: parfumsResult.totalDocs,
+        totalParfums: parfumsResult.totalDocs,
       data: analyseEchantillon,
     });
 

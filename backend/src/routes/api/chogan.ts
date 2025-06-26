@@ -1,6 +1,7 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
 import { ChoganAutomation, OrderRequest } from '../../services/chogan-automation';
+import { ChoganPuppeteerSimple } from '../../services/chogan-puppeteer-simple';
 import { ChoganPuppeteerAutomation } from '../../services/chogan-puppeteer';
 import { choganLogger, LogLevel } from '../../utils/logger';
 import { Request, Response } from 'express';
@@ -53,9 +54,9 @@ router.post('/submit-order', validateOrderData, async (req, res) => {
       produits: orderData.produits.length
     });
 
-    // Utiliser Puppeteer par défaut pour contourner Cloudflare
-    console.log('🚀 Utilisation du service Puppeteer...');
-    const puppeteerAutomation = new ChoganPuppeteerAutomation();
+    // Utiliser Puppeteer SIMPLE par défaut pour contourner Cloudflare
+    console.log('🚀 Utilisation du service Puppeteer SIMPLE...');
+    const puppeteerAutomation = new ChoganPuppeteerSimple();
 
     // Traiter la commande
     const result = await puppeteerAutomation.processOrder(orderData);
@@ -94,8 +95,8 @@ router.get('/health', async (req, res) => {
   try {
     console.log('🏥 Health check avec Puppeteer...');
     
-    // Utiliser Puppeteer au lieu d'Axios pour contourner Cloudflare
-    const puppeteerAutomation = new ChoganPuppeteerAutomation();
+    // Utiliser Puppeteer SIMPLE au lieu d'Axios pour contourner Cloudflare
+    const puppeteerAutomation = new ChoganPuppeteerSimple();
     const isConnected = await puppeteerAutomation.testConnection();
     
     res.json({

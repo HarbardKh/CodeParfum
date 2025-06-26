@@ -123,30 +123,59 @@ export class ChoganPuppeteerSimple {
     await this.page.waitForSelector('input[type="password"]', { timeout: 10000 });
     await this.page.type('input[type="password"]', credentials.password);
     
-    // CLIC ROBUSTE sur le bouton de connexion basé sur sa classe CSS
-    choganLogger.info('CHOGAN_PUPPETEER', 'Recherche du bouton de connexion avec la classe ".btn--primary"...');
-
-    const loginButtonSelector = '.btn--primary'; // Ce sélecteur est indépendant de la langue
+    // CLIC SIMPLE sur le bouton
+    choganLogger.info('CHOGAN_PUPPETEER', 'Clic sur bouton login...');
     
-    try {
-        await this.page.waitForSelector(loginButtonSelector, { timeout: 15000, visible: true });
-        const loginButton = await this.page.$(loginButtonSelector);
-
-        if (loginButton) {
-            choganLogger.info('CHOGAN_PUPPETEER', '✅ Bouton de connexion trouvé. Tentative de clic...');
-            await loginButton.click();
-            choganLogger.info('CHOGAN_PUPPETEER', '✅ Clic effectué sur le bouton.');
-        } else {
-            throw new Error('Bouton de connexion avec la classe .btn--primary introuvable après attente.');
+    await this.page.waitForSelector('#btn_login', { timeout: 10000 });
+    
+    // Vérifier que le bouton existe et est visible
+    const buttonInfo = await this.page.$eval('#btn_login', (btn) => ({
+      text: btn.textContent?.trim(),
+      visible: (btn as HTMLElement).offsetParent !== null,
+      tagName: btn.tagName,
+      href: (btn as HTMLAnchorElement).href
+    }));
+    
+    choganLogger.info('CHOGAN_PUPPETEER', 'Bouton détecté:', buttonInfo);
+    
+    // CLIC + DÉCLENCHER LE JAVASCRIPT MANUELLEMENT
+    choganLogger.info('CHOGAN_PUPPETEER', 'Clic + déclenchement JavaScript...');
+    
+    // 1. Clic normal d'abord
+    await this.page.click('#btn_login');
+    choganLogger.info('CHOGAN_PUPPETEER', '✅ Clic effectué');
+    
+    // 2. Déclencher tous les événements JavaScript manuellement
+    await this.page.evaluate(() => {
+      const button = document.querySelector('#btn_login') as HTMLElement;
+      if (button) {
+        // Déclencher tous les événements possibles
+        button.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        button.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+        button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        button.dispatchEvent(new Event('click', { bubbles: true }));
+        
+        // Si c'est un formulaire, essayer de le soumettre
+        const form = button.closest('form');
+        if (form) {
+          console.log('Formulaire trouvé, soumission...');
+          form.submit();
         }
-    } catch (e) {
-        choganLogger.error('CHOGAN_PUPPETEER', 'Erreur lors de la recherche ou du clic sur le bouton de connexion.', { error: e });
-        await this.page.screenshot({ path: 'screenshots/login-button-not-found-error.png', fullPage: true });
-        throw new Error(`Le bouton de connexion avec la classe ".btn--primary" n'a pas pu être trouvé ou cliqué.`);
-    }
-
-    // Attendre un peu pour que la page réagisse après le clic
-    choganLogger.info('CHOGAN_PUPPETEER', 'Attente de 5 secondes pour la navigation après le clic...');
+        
+        // Chercher et exécuter tout JavaScript associé
+        const onclickAttr = button.getAttribute('onclick');
+        if (onclickAttr) {
+          console.log('onclick trouvé:', onclickAttr);
+          eval(onclickAttr);
+        }
+        
+        console.log('Tous les événements déclenchés');
+      }
+    });
+    
+    choganLogger.info('CHOGAN_PUPPETEER', '🔥 Événements JavaScript déclenchés manuellement');
+    
+    // Attendre pour voir la réaction
     await new Promise(resolve => setTimeout(resolve, 5000));
     
     // Vérifier l'URL actuelle et analyser la page

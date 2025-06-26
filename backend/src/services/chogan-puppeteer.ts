@@ -245,43 +245,40 @@ export class ChoganPuppeteerAutomation {
       // Chercher et remplir le formulaire de connexion
       await this.page.waitForSelector('input[type="email"], input[name*="email"]', { timeout: 10000 });
       
-      // Remplir l'email de manière plus humaine
       const emailField = await this.page.$('input[type="email"], input[name*="email"]');
       if (emailField) {
-        await emailField.click({ clickCount: 3 }); // Sélectionner tout le texte
-        await emailField.press('Backspace'); // Effacer
+        await emailField.click({ clickCount: 3 });
+        await emailField.press('Backspace');
         await this.page.type('input[type="email"], input[name*="email"]', credentials.email, { delay: 50 });
       }
 
       const passwordField = await this.page.$('input[type="password"]');
       if (passwordField) {
-        await passwordField.click({ clickCount: 3 }); // Sélectionner tout
-        await passwordField.press('Backspace'); // Effacer
+        await passwordField.click({ clickCount: 3 });
+        await passwordField.press('Backspace');
         await this.page.type('input[type="password"]', credentials.password, { delay: 50 });
       }
       
       await this.takeScreenshot('before-login-submit');
 
-      // NOUVELLE STRATÉGIE: Clic direct sur le bouton de connexion via sa classe
-      choganLogger.info('CHOGAN_PUPPETEER', 'Tentative de clic sur le bouton de connexion via classe .btn--primary...');
+      // STRATÉGIE ROBUSTE : Cliquer et attendre la navigation simultanément
+      choganLogger.info('CHOGAN_PUPPETEER', 'Clic sur le bouton de connexion et attente de la navigation...');
       
       const loginButtonSelector = '.btn--primary';
       await this.page.waitForSelector(loginButtonSelector, { visible: true, timeout: 10000 });
-      await this.page.click(loginButtonSelector);
-      
-      choganLogger.info('CHOGAN_PUPPETEER', '✅ Clic sur le bouton de connexion effectué. Attente de la réaction de la page (10 secondes)...');
-      
-      // Attendre un changement de page ou un timeout
-      await new Promise(resolve => setTimeout(resolve, 10000));
+
+      await Promise.all([
+        this.page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 20000 }), // Attendre que la page se charge après le clic
+        this.page.click(loginButtonSelector) // Cliquer sur le bouton
+      ]);
       
       await this.takeScreenshot('after-login-attempt');
       
-      // Vérifier si la connexion a réussi
       const currentUrl = this.page.url();
       if (currentUrl.includes('login_page')) {
         choganLogger.error('CHOGAN_PUPPETEER', 'Échec de la connexion, toujours sur la page de login.', { url: currentUrl });
         await this.takeScreenshot('login-error');
-        throw new Error('Connexion échouée : la soumission du formulaire n\'a pas provoqué de changement de page.');
+        throw new Error("Connexion échouée : le clic sur le bouton n'a pas provoqué de changement de page.");
       }
       
       choganLogger.info('CHOGAN_PUPPETEER', 'Connexion réussie !', { url: currentUrl });
@@ -289,6 +286,7 @@ export class ChoganPuppeteerAutomation {
       
     } catch (error) {
       choganLogger.error('CHOGAN_PUPPETEER', 'Erreur lors de la connexion', { email: credentials.email }, error as Error);
+      await this.takeScreenshot('login-fatal-error');
       throw new Error(`Connexion revendeur échouée: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
     }
   }

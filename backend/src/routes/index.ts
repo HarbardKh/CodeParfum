@@ -1,7 +1,7 @@
 import express from 'express';
 import { getParfums } from './api/parfums';
 import { generateConseil } from './api/openai';
-import { getRecommandations, testScoring, debugData } from './api/conseiller';
+import { getRecommandations, testScoring, debugData, listFamilles, inspectParfums } from './api/conseiller';
 import { Request, Response } from 'express';
 import { defaultLimiter, dataLimiter, sensitiveLimiter } from '../middleware/rateLimiter';
 import { validate, validatePagination, validateSearch } from '../middleware/inputValidation';
@@ -9,6 +9,7 @@ import { protectAgainstCsrf, generateCsrfToken } from '../middleware/csrfProtect
 import cookieParser from 'cookie-parser';
 import healthRouter from './api/health';
 import choganRouter from './api/chogan';
+import { choganProcess, choganTest } from './api/chogan';
 
 export const initRoutes = (app: express.Express): void => {
   // Route pour obtenir un token CSRF (sans protection CSRF car c'est pour obtenir le token)
@@ -58,4 +59,10 @@ export const initRoutes = (app: express.Express): void => {
     }
     return res.status(200).json({ status: 'ok', message: 'Vérification de sécurité réussie' });
   });
+
+  app.get('/api/conseiller/list-familles', listFamilles);
+  app.get('/api/conseiller/inspect-parfums', inspectParfums);
+
+  // Routes de l'API Chogan
+  app.post('/api/chogan/process', choganProcess);
 };
